@@ -50,22 +50,28 @@ function clickAPILink(apiLink)
 
 function getBaseURL(docURL)
 {
-    var hostName = "";
-    if (QueryParameters["hostname"]) hostName = QueryParameters["hostname"];
-    else
+	var localhostUrl = "https://localhost:8443/mifosng-provider/api/v1/";
+	var openmfDemoUrl = "/mifosng-provider/api/v1/";
+	
+	var baseUrl = "";
+    
+    if (docURL.substring(0,4).toLowerCase() == "http")
     {
-        if (docURL.substring(0,4).toLowerCase() == "http")
-        {
-            var l = getLocation(docURL);
-            hostName = l.hostname;
-        }
-        else
-        {
-            //assume running locally
-            hostName = "localhost";
+        var l = getLocation(docURL);
+        
+        if (l.hostname == "demo.openmf.org") {
+        	baseUrl = openmfDemoUrl;
+        } else {
+        	baseUrl = "https://" + l.hostname + ":8443/mifosng-provider/api/v1/"
         }
     }
-    return "https://" + hostName + ":8443/mifosng-provider/api/v1/"; 
+    else
+    {
+        //assume running locally
+        baseUrl = localhostUrl;
+    }
+        
+    return baseUrl; 
 }
 
 </script>
@@ -117,6 +123,9 @@ function getBaseURL(docURL)
                         <tr><td></td><td>offices/{officeId}</td><td></td><td><a href="#offices_retrieve">Retrieve an Office</a></td><td><a href="#offices_update">Update an Office</a></td><td></td></tr>
                         <tr class="alt"><td><a href="#loanproducts">LOAN PRODUCT</a></td><td>loanproducts</td><td><a href="#loanproducts_create">Create a Loan Product</a></td><td><a href="#loanproducts_list">List Loan Products</a></td><td></td><td></td></tr>
                         <tr><td></td><td>loanproducts/{productId}</td><td></td><td><a href="#loanproducts_retrieve">Retrieve a Loan Product</a></td><td><a href="#loanproducts_update">Update a Loan Product</a></td><td></td></tr>
+						<tr></tr>
+						<tr class="alt"><td><a href="#loans">FIXED DEPOSITS</a></td><td>depositaccounts</td><td><a href="#loans_create">Create a New Deposit Application</a></td><td><a href="#loans_create">List Deposit Applications</a></td><td></td><td></td></tr>
+                        <tr><td></td><td>depositaccounts/{accountId}</td><td><a href="#loans_approve_etc">Approve, Undo Approve, Interest withdraw, Reject a Deposit Application or Withdraw a Deposit Application</a></td><td><a href="#loans_retrieve">Retrieve a Deposit Application</a></td><td> <a href="#loans_delete">Update a Deposit Application</a></td><td><a href="#loans_delete">Delete a Deposit Application</a></td></tr>
                     </table>
                 </div>                
             </div>
@@ -138,8 +147,6 @@ function getBaseURL(docURL)
                 <div class="tocMatrix">
                     <table class=matrixHeading>
                         <tr class="matrixHeadingBG"><td colspan=2 valign="top"><div class="matrixHeadingVerbs"><table><tr><td>RESOURCES</td></tr></table></div></td><td><table><tr><td><div class="matrixHeadingVerbs">POST</div></td></tr><tr><td><div class=matrixHeadingCommands>create/complex update</div></td></tr></table></td><td><table><tr><td><div class="matrixHeadingVerbs">GET</div></td></tr><tr><td><div class=matrixHeadingCommands>read</div></td></tr></table></td><td><table><tr><td><div class="matrixHeadingVerbs">PUT</div></td></tr><tr><td><div class=matrixHeadingCommands>update</div></td></tr></table></td><td><table><tr><td><div class="matrixHeadingVerbs">DELETE</div></td></tr><tr><td><div class=matrixHeadingCommands>delete</div></td></tr></table></td></tr>
-                        <tr><td><a href="#additionalfields">ADDITIONAL FIELDS</a></td><td>additionalfields (deprecated)</td><td></td><td><a href="#additionalfields_list">List Additional Fields Sets</a></td><td></td><td></td></tr>
-                        <tr class="alt"><td></td><td>additionalfields/{Type}/{Set}/{id} (deprecated)</td><td><a href="#additionalfields_update">Update Additional Fields</a></td><td><a href="#additionalfields_retrieve">Retrieve Additional Fields</a></td><td></td><td></td></tr>
                         <tr><td><a href="#datatables">DATA TABLE</a></td><td>datatables</td><td></td><td><a href="#datatables_list">List Data Tables</a></td><td></td><td></td></tr>
                         <tr class="alt"><td></td><td>datatables/register/{datatable}/{apptable}</td><td><a href="#datatables_register">Register Data Table</a></td><td></td><td></td><td></td></tr>
                         <tr><td></td><td>datatables/deregister/{datatable}</td><td><a href="#datatables_deregister">Deregister Data Table</a></td><td></td><td></td><td></td></tr>
@@ -172,7 +179,8 @@ function getBaseURL(docURL)
                         <tr><td></td><td>users/{userId}</td><td></td><td><a href="#users_retrieve">Retrieve a User</a></td><td><a href="#users_update">Update a User</a></td><td><a href="#users_delete">Delete a User</a></td></tr>
                         <tr class="alt"><td><a href="#roles">ROLE</a></td><td>roles</td><td><a href="#roles_create">Create a New Role</a></td><td><a href="#roles_list">List Roles</a></td><td></td><td></td></tr>
                         <tr><td></td><td>roles/{roleId}</td><td></td><td><a href="#roles_retrieve">Retrieve a Role</a></td><td><a href="#roles_update">Update a Role</a></td><td></td></tr>
-                        <tr class="alt"><td><a href="#permissions">PERMISSION</a></td><td>permissions</td><td></td><td><a href="#permissions_list">List Application Permissions</a></td><td></td><td></td></tr>
+                        <tr class="alt"><td></td><td>roles/{roleId}/permissions</td><td></td><td><a href="#rolespermissions_retrieve">Retrieve a Role's Permissions</a></td><td><a href="#rolespermissions_update">Update a Role's Permissions</a></td><td></td></tr>
+                        <tr><td><a href="#permissions">PERMISSION</a></td><td>permissions</td><td></td><td><a href="#permissions_list">List Application Permissions</a></td><td></td><td></td></tr>
                     </table>
                 </div>                
             </div>
@@ -189,7 +197,7 @@ function getBaseURL(docURL)
                         <tr><td>offices/template</td><td><a href="#offices_template">Retrieve Office Details Template</a></td></tr>
                         <tr class="alt"><td>loanproducts/template</td><td><a href="#loanproducts_template">Retrieve Loan Product Details Template</a></td></tr>
                         <tr><td>users/template</td><td><a href="#users_template">Retrieve User Details Template</a></td></tr>
-                        <tr class="alt"><td>roles/template</td><td><a href="#roles_template">Retrieve Role Details Template</a></td></tr>
+                        <tr class="alt"><td>audit/searchtemplate</td><td><a href="#audit_searchtemplate">Retrieve Audit Search Data</a></td></tr>
                     </table>
                 </div>
             </div>
@@ -505,7 +513,7 @@ var jqxhr = $.ajax({
   "firstname" : "Patrick",
   "lastname" : "Asare-Frimpong",
   "displayName" : "Patrick Asare-Frimpong",
-  "externalId" : null,
+  "externalId" : "123AB",
   "joinedDate" : [ 2012, 4, 18 ]
 }, {
   "officeId" : 5,
@@ -514,7 +522,6 @@ var jqxhr = $.ajax({
   "firstname" : "firstMajmoua",
   "lastname" : "client",
   "displayName" : "firstMajmoua client",
-  "externalId" : null,
   "joinedDate" : [ 2011, 12, 1 ]
 }... ]
 </code>
@@ -581,7 +588,6 @@ var jqxhr = $.ajax({
   "firstname" : "Patrick",
   "lastname" : "O'Meara",
   "displayName" : "Patrick O'Meara",
-  "externalId" : null,
   "joinedDate" : [ 2009, 1, 4 ]
 }
 </code>
@@ -594,12 +600,11 @@ var jqxhr = $.ajax({
         <h4>Create a Client</h4>
         <p> <b>Note:</b> You can enter either:<br>
         firstname/lastname - for a person OR<br>
-        clientOrBusinessName - for a business or organisation (or person known by one name).<br><br>
-        If you use clientOrBusinessName, the value is placed in the lastname field when you retrieve clients.
+        clientOrBusinessName - for a business or organisation (or person known by one name).<br>
         </p>
         <table class=matrixHeading>
             <tr class="matrixHeadingBG"><td><div class="mifosXHeading2">Mandatory Fields</div></td></tr>
-            <tr class=alt><td>firstname and lastname OR clientOrBusinessName<br>, joiningDate, officeId</td></tr>
+            <tr class=alt><td>firstname and lastname OR clientOrBusinessName<br>, joinedDate, officeId</td></tr>
         </table>
     </div>
     <div class="method-example">
@@ -612,13 +617,14 @@ Request Body:
  "firstname": "Petra", 
  "lastname": "Yton", 
  "externalId": "786YYH7",
- "dateFormat": "dd MMMM yyyy", 
- "joiningDate": "04 March 2009"
+ "dateFormat": "dd MMMM yyyy",
+ "locale": "en",
+ "joinedDate": "04 March 2009"
 }
 </code>
 <code class="method-response">
 {
- "entityId":23
+ "resourceId":23
 }
 </code>
     </div>
@@ -631,12 +637,13 @@ Request Body:
  "clientOrBusinessName": "New Business to Create",
  "externalId": "one/78",
  "dateFormat": "dd MMMM yyyy", 
- "joiningDate": "13 June 2006"
+ "locale": "en",
+ "joinedDate": "13 June 2006"
 }
 </code>
 <code class="method-response">
 {
- "entityId":26
+ "resourceId":26
 }
 </code>
     </div>
@@ -655,10 +662,11 @@ Request Body:
 { 
  "externalId": "786444UUUYYH7",
  "dateFormat": "dd MMMM yyyy", 
- "joiningDate": "09 June 2006"
+ "locale": "en",
+ "joinedDate": "09 June 2006"
 }
 </code>
-<code class="method-response">{ "entityId": 23}</code>
+<code class="method-response">{ "resourceId": 23}</code>
     </div>
 </div>
         
@@ -674,44 +682,48 @@ Request Body:
         <p>Example Requests: </p>
         <div class=apiClick>clients/1/loans</div>
         <br><br>
-        <div class=apiClick>clients/1/loans?fields=openLoans,%20closedLoans,activeLoanCount</div>
+        <div class=apiClick>clients/1/loans?fields=openLoans,closedLoans,activeLoanCount</div>
     </div>
     <div class="method-example">
         <code class="method-declaration">GET https://Domain Name/api/v1/clients/{clientId}/loans</code>
 <code class="method-response">{
-  "pendingApprovalLoans" : [ ],
-  "awaitingDisbursalLoans" : [ {
-    "id" : 17,
-    "externalId" : null,
-    "loanProductId" : 1,
-    "loanProductName" : "Agricultural Loan",
-    "loanStatusId" : 200,
-    "pendingApproval" : false,
-    "waitingForDisbursal" : true,
-    "open" : false,
-    "closed" : false,
-    "lifeCycleStatusText" : "Approved",
-    "lifeCycleStatusDate" : null
-  } ],
-  "openLoans" : [ ],
-  "closedLoans" : [ {
-    "id" : 1,
-    "externalId" : null,
-    "loanProductId" : 1,
-    "loanProductName" : "Agricultural Loan",
-    "loanStatusId" : 600,
-    "pendingApproval" : false,
-    "waitingForDisbursal" : false,
-    "open" : false,
-    "closed" : true,
-    "lifeCycleStatusText" : "Closed",
-    "lifeCycleStatusDate" : null
-  } ],
-  "anyLoanCount" : 2,
-  "pendingApprovalLoanCount" : 0,
-  "awaitingDisbursalLoanCount" : 1,
-  "activeLoanCount" : 0,
-  "closedLoanCount" : 1
+  "anyLoanCount": 3,
+  "activeLoanCount": 2,
+  "openLoans": [
+    {
+      "id": 22,
+      "productId": 1,
+      "productName": "Agricultural Loan",
+      "status": {
+        "id": 300,
+        "code": "loanStatusType.active",
+        "value": "Active"
+      }
+    },
+    {
+      "id": 44,
+      "productId": 1,
+      "productName": "Agricultural Loan",
+      "status": {
+        "id": 300,
+        "code": "loanStatusType.active",
+        "value": "Active"
+      }
+    }
+  ],
+  "closedLoanCount": 1,
+  "closedLoans": [
+    {
+      "id": 33,
+      "productId": 1,
+      "productName": "Agricultural Loan",
+      "status": {
+        "id": 601,
+        "code": "loanStatusType.closed.written.off",
+        "value": "Closed (written off)"
+      }
+    }
+  ]
 }
 </code>
     </div>
@@ -735,8 +747,6 @@ Request Body:
 <code class="method-response">[ {
   "id" : 20,
   "clientId" : 2,
-  "loanId" : null,
-  "loanTransactionId" : null,
   "noteType" : {
     "id" : 100,
     "code" : "noteType.client",
@@ -752,8 +762,6 @@ Request Body:
 }, {
   "id" : 16,
   "clientId" : 2,
-  "loanId" : null,
-  "loanTransactionId" : null,
   "noteType" : {
     "id" : 100,
     "code" : "noteType.client",
@@ -786,7 +794,7 @@ Request Body:
 }
 </code>
 <code class="method-response">{
- "entityId": 40
+ "resourceId": 40
 }
 </code>
     </div>
@@ -806,8 +814,6 @@ Request Body:
         <code class="method-response">{
   "id" : 20,
   "clientId" : 2,
-  "loanId" : null,
-  "loanTransactionId" : null,
   "noteType" : {
     "id" : 100,
     "code" : "noteType.client",
@@ -840,7 +846,7 @@ Request Body:
 }
 </code>
 <code class="method-response">{
- "entityId": 20
+ "resourceId": 20
 }
 </code>
     </div>
@@ -1142,70 +1148,67 @@ Request Body:
     <div class="method-example">
         <code class="method-declaration">GET https://Domain Name/api/v1/loans/{loanId}</code>
         <code class="method-response">{
-  "id" : 1,
-  "externalId" : null,
-  "loanProductName" : "Agricultural Loan",
-  "submittedOnDate" : [ 2009, 1, 5 ],
-  "approvedOnDate" : [ 2009, 1, 8 ],
-  "expectedDisbursementDate" : [ 2009, 1, 15 ],
-  "actualDisbursementDate" : [ 2009, 1, 15 ],
-  "expectedFirstRepaymentOnDate" : null,
-  "interestChargedFromDate" : null,
-  "closedOnDate" : [ 2009, 11, 13 ],
-  "expectedMaturityDate" : [ 2009, 11, 15 ],
-  "principal" : {
-    "currencyCode" : "XOF",
-    "digitsAfterDecimal" : 0,
-    "amount" : 100000,
-    "defaultName" : "CFA Franc BCEAO",
-    "nameCode" : "currency.XOF",
-    "displaySymbol" : "CFA",
-    "zero" : false,
-    "greaterThanZero" : true,
-    "displaySymbolValue" : "100000 CFA"
+{
+  "id": 1,
+  "clientId": 1,
+  "clientName": "Willie O'Meara",
+  "loanProductId": 1,
+  "loanProductName": "Agricultural Loan",
+  "loanProductDescription": "An agricultural loan given to farmers to help buy crop, stock and machinery. With an arrears tolerance setting of 1,000 CFA, loans are not marked as 'in arrears' or 'in bad standing' if the amount outstanding is less than this. Interest rate is described using monthly percentage rate (MPR) even though the loan typically lasts a year and requires one repayment (typically at time when farmer sells crop)",
+  "status": {
+    "id": 100,
+    "code": "loanStatusType.submitted.and.pending.approval",
+    "value": "Submitted and pending approval"
   },
-  "inArrearsTolerance" : {
-    "currencyCode" : "XOF",
-    "digitsAfterDecimal" : 0,
-    "amount" : 1000,
-    "defaultName" : "CFA Franc BCEAO",
-    "nameCode" : "currency.XOF",
-    "displaySymbol" : "CFA",
-    "zero" : false,
-    "greaterThanZero" : true,
-    "displaySymbolValue" : "1000 CFA"
+  "currency": {
+    "code": "XOF",
+    "name": "CFA Franc BCEAO",
+    "decimalPlaces": 0,
+    "displaySymbol": "CFA",
+    "nameCode": "currency.XOF",
+    "displayLabel": "CFA Franc BCEAO (CFA)"
   },
-  "numberOfRepayments" : 1,
-  "repaymentEvery" : 10,
-  "interestRatePerPeriod" : 1.75,
-  "annualInterestRate" : 21.0,
-  "repaymentFrequencyType" : {
-    "id" : 2,
-    "code" : "repaymentFrequency.periodFrequencyType.months",
-    "value" : "Months"
+  "principal": 100000,
+  "termFrequency": 12,
+  "termPeriodFrequencyType": {
+    "id": 2,
+    "code": "termFrequency.periodFrequencyType.months",
+    "value": "Months"
   },
-  "interestRateFrequencyType" : {
-    "id" : 2,
-    "code" : "interestRateFrequency.periodFrequencyType.months",
-    "value" : "Per month"
+  "numberOfRepayments": 12,
+  "repaymentEvery": 1,
+  "repaymentFrequencyType": {
+    "id": 2,
+    "code": "repaymentFrequency.periodFrequencyType.months",
+    "value": "Months"
   },
-  "amortizationType" : {
-    "id" : 1,
-    "code" : "amortizationType.equal.installments",
-    "value" : "Equal installments"
+  "transactionProcessingStrategyId": 1,
+  "amortizationType": {
+    "id": 1,
+    "code": "amortizationType.equal.installments",
+    "value": "Equal installments"
   },
-  "interestType" : {
-    "id" : 0,
-    "code" : "interestType.declining.balance",
-    "value" : "Declining Balance"
+  "interestRatePerPeriod": 2,
+  "interestRateFrequencyType": {
+    "id": 2,
+    "code": "interestRateFrequency.periodFrequencyType.months",
+    "value": "Per month"
   },
-  "interestCalculationPeriodType" : {
-    "id" : 1,
-    "code" : "interestCalculationPeriodType.same.as.repayment.period",
-    "value" : "Same as repayment period"
+  "annualInterestRate": 24,
+  "interestType": {
+    "id": 0,
+    "code": "interestType.declining.balance",
+    "value": "Declining Balance"
   },
-  "lifeCycleStatusText" : "Closed",
-  "lifeCycleStatusDate" : [ 2009, 11, 13 ]
+  "interestCalculationPeriodType": {
+    "id": 1,
+    "code": "interestCalculationPeriodType.same.as.repayment.period",
+    "value": "Same as repayment period"
+  },
+  "submittedOnDate": [2011,9,20],
+  "expectedDisbursementDate": [2011,9,20],
+  "expectedMaturityDate": [2012,9,20],
+  "lifeCycleStatusDate": [2011,9,20]
 }
         </code>
     </div>
@@ -1227,9 +1230,9 @@ Request Body:
         <br>
         <table class=matrixHeading>
             <tr class="matrixHeadingBG"><td><div class="mifosXHeading2">Mandatory Fields</div></td></tr>
-            <tr class=alt><td>clientId, productId, inArrearsTolerance, submittedOnDate, principal,
-            repaymentFrequencyType, repaymentEvery, numberOfRepayments, interestRatePerPeriod, interestRateFrequencyType, amortizationType,
-            interestType, interestCalculationPeriodType, expectedDisbursementDate</td></tr>
+            <tr class=alt><td>clientId, productId, principal, loanTermFrequency, loanTermFrequencyType, numberOfRepayments,
+            repaymentEvery, repaymentFrequencyType, interestRatePerPeriod, interestRateFrequencyType, amortizationType,
+            interestType, interestCalculationPeriodType, expectedDisbursementDate, submittedOnDate, transactionProcessingStrategyId</td></tr>
         </table>
     </div>
     <div class="method-example">
@@ -1238,26 +1241,29 @@ Request Body:
 Content-Type: application/json
 Request Body:
 {
- "clientId": 1,
- "productId": 1,
- "locale": "en_GB",
- "principal": "100,000.00",
- "inArrearsTolerance": "1,000.00",
- "repaymentFrequencyType": 2,
- "repaymentEvery": "1",
- "numberOfRepayments": "12",
- "interestRatePerPeriod": "1.75",
- "interestRateFrequencyType": 2,
- "amortizationType": 1,
- "interestCalculationPeriodType": 1,
- "interestType": 0,
- "dateFormat": "dd MMMM yyyy",
- "expectedDisbursementDate": "01 July 2007",
- "submittedOnDate": "25 June 2007"
+"dateFormat": "dd MMMM yyyy",
+"locale": "en_GB", 
+"clientId": 1,
+"productId": 1,
+"principal": "100,000.00",
+"loanTermFrequency": 12,
+"loanTermFrequencyType": 2,
+"numberOfRepayments": 12,
+"repaymentEvery": 1,
+"repaymentFrequencyType": 2,
+"interestRatePerPeriod": 2,
+"interestRateFrequencyType": 2,
+"amortizationType": 1,
+"interestType": 0,
+"interestCalculationPeriodType": 1,
+"expectedDisbursementDate": "20 September 2011",
+"submittedOnDate": "20 September 2011",
+"transactionProcessingStrategyId": 1
 }
+
         </code>
         <code class="method-response">{
- "entityId": 42
+ "resourceId": 42
 }
         </code>
     </div>
@@ -1266,7 +1272,7 @@ Request Body:
         <a id="loans_approve_etc" name="loans_approve_etc" class="old-syle-anchor">&nbsp;</a>
         <div class="method-section">
             <div class="method-description">
-                <h4>Approve, Undo Approval, Disburse, Undo Disbursal, Reject a Loan or Withdraw a Loan Application</h4>
+                <h4>Approve, Undo Approval, Disburse, Undo Disbursal, Reject or Withdraw a Loan Application</h4>
                 <h5>Arguments</h5> 
                 <dl class="argument-list">
                     <dt>command</dt>
@@ -1294,8 +1300,9 @@ Request Body:
  "eventDate": "07 May 2012",
  "note": "and event note is added"
 }                </code>
-                <code class="method-response">{
-"entityId": 37
+                <code class="method-response">
+{
+"resourceId": 37
 }
                 </code>
             </div>
@@ -1315,7 +1322,7 @@ Content-Type: application/json
 No Request Body:
                 </code>
                 <code class="method-response">{
-"entityId": 1
+"resourceId": 1
 }
                 </code>
             </div>
@@ -1395,7 +1402,7 @@ Request Body:
 }
                 </code>
                 <code class="method-response">{
-"entityId": 37
+"resourceId": 37
 }
                 </code>
             </div>
@@ -1413,8 +1420,6 @@ Request Body:
                 <code class="method-response">{
   "id" : 10,
   "date" : [ 2009, 1, 29 ],
-  "principal" : null,
-  "interest" : null,
   "total" : {
     "currencyCode" : "XOF",
     "digitsAfterDecimal" : 0,
@@ -1426,8 +1431,6 @@ Request Body:
     "greaterThanZero" : true,
     "displaySymbolValue" : "300000 CFA"
   },
-  "totalWaived" : null,
-  "overpaid" : null,
   "transactionOffsetFromToday" : -1218
 }
                 </code>
@@ -1457,7 +1460,7 @@ Request Body:
 }
                 </code>
                 <code class="method-response">{
-    "entityId": 16
+    "resourceId": 16
 }
                 </code>
             </div>
@@ -1505,13 +1508,10 @@ Request Body:
   "name" : "Demo MFI Head Office",
   "externalId" : "1",
   "openingDate" : [ 2009, 1, 1 ],
-  "hierarchy" : ".",
-  "parentName" : null,
-  "parentId" : null
+  "hierarchy" : "."
 }, {
   "id" : 2,
   "name" : "B1",
-  "externalId" : null,
   "openingDate" : [ 2012, 4, 1 ],
   "hierarchy" : ".2.",
   "parentName" : "Demo MFI Head Office",
@@ -1519,7 +1519,6 @@ Request Body:
 }, {
   "id" : 3,
   "name" : "B2",
-  "externalId" : null,
   "openingDate" : [ 2012, 4, 4 ],
   "hierarchy" : ".3.",
   "parentName" : "Demo MFI Head Office",
@@ -1579,9 +1578,7 @@ Request Body:
   "name" : "Demo MFI Head Office",
   "externalId" : "1",
   "openingDate" : [ 2009, 1, 1 ],
-  "hierarchy" : ".",
-  "parentName" : null,
-  "parentId" : null
+  "hierarchy" : "."
 }
 </code>
             </div>
@@ -1610,7 +1607,7 @@ Request Body:
 }
 </code>
 <code class="method-response">{
-  "entityId": 9
+  "resourceId": 9
 }
 </code>
             </div>
@@ -1631,7 +1628,7 @@ Request Body:
 }
 </code>
 <code class="method-response">{
-  "entityId": 1
+  "resourceId": 1
 }
 </code>
             </div>
@@ -1766,7 +1763,6 @@ Request Body:
 }, {
   "id" : 2,
   "name" : "Brunei Loan",
-  "description" : null,
   "principal" : {
     "currencyCode" : "BND",
     "digitsAfterDecimal" : 2,
@@ -2097,7 +2093,7 @@ Request Body:
 }
 </code>
 <code class="method-response">{
-  "entityId": 9
+  "resourceId": 9
 }
 </code>
             </div>
@@ -2120,7 +2116,7 @@ Request Body:
 }
 </code>
 <code class="method-response">{
-  "entityId": 1
+  "resourceId": 1
 }
 </code>
             </div>
@@ -2160,7 +2156,6 @@ Request Body:
     "code" : "ETB",
     "name" : "Ethiopian Birr",
     "decimalPlaces" : 2,
-    "displaySymbol" : null,
     "nameCode" : "currency.ETB",
     "displayLabel" : "Ethiopian Birr [ETB]"
   } ],
@@ -2168,14 +2163,12 @@ Request Body:
     "code" : "AED",
     "name" : "UAE Dirham",
     "decimalPlaces" : 2,
-    "displaySymbol" : null,
     "nameCode" : "currency.AED",
     "displayLabel" : "UAE Dirham [AED]"
   }, {
     "code" : "AFN",
     "name" : "Afghanistan Afghani",
     "decimalPlaces" : 2,
-    "displaySymbol" : null,
     "nameCode" : "currency.AFN",
     "displayLabel" : "Afghanistan Afghani [AFN]"
   }, ...
@@ -2213,178 +2206,6 @@ Request Body:{
 }
                 </code>
 	    </div>
-        </div>
-    
-    <!-- start of additionalfields api docs -->
-        <a id="additionalfields" name="additionalfields" class="old-syle-anchor">&nbsp;</a>
-        <div class="method-section">
-            <div class="method-description">
-                <h3>Additional Fields (Deprecated)</h3>
-                <p>Note: this API is now superceded by the datatables API and will be removed very soon.</p>
-                <p>
-                In Mifos X, any number of "Sets" of "Additional Fields" can be configured for a Mifos X database table ("Type").
-                </p>
-                <p>  For example, portfolio_client is the database table that holds client data.  Typically, MFI's want more client related fields than is provided by Mifos X out-of-the-box.  
-                The MFI might add a Set called "Additional Info" containing some fields that are typically input when creating a client.
-                They might then add another Set called "Highly Improbable Info" containing some fields that are only input in exceptional
-                circumstances.
-                </p>
-                <p>
-                The additional fields resource allows you to retrieve and update any Additional Fields data that has been configured in Mifos X.
-                </p>
-                <p>
-                The Mifos X Individual Lending client application uses a JQuery plugin called stretchydata which, itself, uses this
-                additional fields resource to provide a pretty flexible additional fields User Interface (UI).
-                </p>
-            </div>
-        </div>
-    
-    
-        <a id="additionalfields_list" name="additionalfields_list" class="old-syle-anchor">&nbsp;</a>
-        <div class="method-section">
-            <div class="method-description">
-                <h4>List Additional Fields Sets</h4>
-                <p>
-                Lists the Sets of additional fields have been defined in Mifos X. 
-                </p>
-                
-                <h5>Arguments</h5>
-                <dl class="argument-list">
-                    <dt>type</dt>
-                    <dd><span>optional</span></dd>
-                    <dd>The Additional Fields Type (Mifos X database table) to restrict the output to</dd>
-                </dl>
-                <p>Example Requests: </p>
-                <div class=apiClick>additionalfields?type=m_client</div>
-                <br><br>
-                <div class=apiClick>additionalfields</div>
-            </div>
-            <div class="method-example">
-                <code class="method-declaration">GET https://Domain Name/api/v1/additionalfields</code>
-                <code class="method-response">[ {
-  "id" : 1,
-  "name" : "Additional Information",
-  "type" : "portfolio_client"
-}, {
-  "id" : 8,
-  "name" : "Additional Information",
-  "type" : "portfolio_loan"
-}, {
-  "id" : 9,
-  "name" : "Highly Improbable Info",
-  "type" : "portfolio_client"
-} ]
-                </code>
-            </div>
-        </div>
-    
-    
-        <a id="additionalfields_retrieve" name="additionalfields_retrieve" class="old-syle-anchor">&nbsp;</a>
-        <div class="method-section">
-            <div class="method-description">
-                <h4>Retrieve Additional Fields</h4>
-                <p>
-                Returns the Set of Additional Fields data for the ID provided.  The ID is the id field of the Type table e.g. portfolio_client might have an id value of 4.  The output is a JSON formatted "Generic Resultset".  The Generic Resultset contains Column Heading as well as Data information.  The Column Heading information may include allowed values (columnValues array).
-                </p>
-                <p>Example Request: 
-                <div class=apiClick>additionalfields/m_client/Additional Information/2</div>
-                </p>
-            </div>
-            <div class="method-example">
-                <code class="method-declaration">GET https://Domain Name/api/v1/additionalfields/{type}/{set}/{id}</code>
-                <code class="method-response">{
-  "columnHeaders" : [ {
-    "columnName" : "Ethnic Group",
-    "columnType" : "String",
-    "columnLength" : 50,
-    "columnDisplayType" : "List",
-    "columnValues" : [ "Bedouin", "Berber", "Italian", "Miknasa", "Mrazig", "Other", "Unknown" ]
-  }, {
-    "columnName" : "Ethnic Group Other",
-    "columnType" : "String",
-    "columnLength" : 50,
-    "columnDisplayType" : null,
-    "columnValues" : [ ]
-  }, {
-    "columnName" : "Household Location",
-    "columnType" : "String",
-    "columnLength" : 50,
-    "columnDisplayType" : "List",
-    "columnValues" : [ "East Sikkim", "North Sikkim", "South Sikkim", "West Sikkim", "Other" ]
-  }, {
-    "columnName" : "Household Location Other",
-    "columnType" : "String",
-    "columnLength" : 50,
-    "columnDisplayType" : null,
-    "columnValues" : [ ]
-  }, {
-    "columnName" : "Religion",
-    "columnType" : "String",
-    "columnLength" : 50,
-    "columnDisplayType" : "List",
-    "columnValues" : [ "Protestant", "Catholic", "Muslim", "Animist", "Atheist", "Other", "Unknown" ]
-  }, {
-    "columnName" : "Religion Other",
-    "columnType" : "String",
-    "columnLength" : 50,
-    "columnDisplayType" : null,
-    "columnValues" : [ ]
-  }, {
-    "columnName" : "Knowledge of Person",
-    "columnType" : "String",
-    "columnLength" : 50,
-    "columnDisplayType" : "List",
-    "columnValues" : [ "Staff member", "Spouse of staff member", "Son/daughter of staff member", "Friend of staff member", "Not known by any staff member", "Other" ]
-  }, {
-    "columnName" : "Gender",
-    "columnType" : "String",
-    "columnLength" : 10,
-    "columnDisplayType" : "List",
-    "columnValues" : [ "Female", "Male" ]
-  }, {
-    "columnName" : "Whois",
-    "columnType" : "Text",
-    "columnLength" : null,
-    "columnDisplayType" : null,
-    "columnValues" : [ ]
-  } ],
-  "data" : [ {
-    "row" : [ "Bedouin", null, "East Sikkim", null, "Animist", "Agnostic", "Friend of staff member", "Female", "A person of honesty & clear thought" ]
-  } ]
-}
-                </code>
-            </div>
-        </div>
-        <a id="additionalfields_update" name="additionalfields_update" class="old-syle-anchor">&nbsp;</a>
-        <div class="method-section">
-            <div class="method-description">
-            <h4>Update Additional Fields</h4>
-            <p>
-            Updates (or creates) the Set of Additional Fields data for the ID provided.  The ID is the id field of the Type table e.g. portfolio_client might have an id value of 4.
-            </p>
-            </div>
-            <div class="method-example">
-                <code class="method-declaration">POST https://Domain Name/api/v1/additionalfields/{type}/{set}/{id}</code>
-                <code class="method-request">POST additionalfields/portfolio_client/Additional Information/2
-Content-Type: application/json
-Request Body:
-{
- "Ethnic_Group":"Berber",
- "Ethnic_Group_Other":"",
- "Household_Location":"East Sikkim",
- "Household_Location_Other":"",
- "Religion":"Animist",
- "Religion_Other":"jjjjjjj",
- "Knowledge_of_Person":"Son/daughter of staff member",
- "Gender":"Female",
- "Whois":"its\r\nme of\r\ncourse\r\nyes\r\nend and the end of it all"
-}
-</code>
-                <code class="method-response">{
- "entityId": 2
-}
-                </code>
-            </div>
         </div>
     
     <!-- start of datatables api docs -->
@@ -2463,7 +2284,7 @@ Request Body:
 }
 </code>
                 <code class="method-response">{
-  "entityId": null
+  "resourceId": null
 }
                 </code>
             </div>
@@ -2487,7 +2308,7 @@ Request Body:
 }
 </code>
                 <code class="method-response">{
-  "entityId": null
+  "resourceId": null
 }
                 </code>
             </div>
@@ -2525,7 +2346,7 @@ Request Body:
 }
 </code>
                 <code class="method-response">{
-  "entityId": 1
+  "resourceId": 1
 }
                 </code>
             </div>
@@ -2603,7 +2424,7 @@ Request Body:
 }
 </code>
                 <code class="method-response">{
-  "entityId": 1
+  "resourceId": 1
 }
                 </code>
             </div>
@@ -2633,7 +2454,7 @@ Request Body:
 }
 </code>
                 <code class="method-response">{
-  "entityId": 1
+  "resourceId": 1
 }
                 </code>
             </div>
@@ -2657,7 +2478,7 @@ Request Body:
 }
 </code>
                 <code class="method-response">{
-  "entityId": 1
+  "resourceId": 1
 }
                 </code>
             </div>
@@ -2680,7 +2501,7 @@ Request Body:
 }
 </code>
                 <code class="method-response">{
-  "entityId": 1
+  "resourceId": 1
 }
                 </code>
             </div>
@@ -3040,53 +2861,41 @@ No Request Body
 	    <div class="method-example">
 	        <code class="method-declaration">GET https://Domain Name/api/v1/users/template</code>
 <code class="method-response">{
-  "allowedOffices" : [ {
-    "id" : 1,
-    "name" : "Demo MFI Head Office"
-  }, {
-    "id" : 2,
-    "name" : "sub branch 1"
-  }, {
-    "id" : 8,
-    "name" : "moi aussi"
-  }, {
-    "id" : 3,
-    "name" : "sub branch 2"
-  }, {
-    "id" : 4,
-    "name" : "sub branch 3"
-  }],
-  "availableRoles" : [ {
-    "id" : 1,
-    "name" : "Super user",
-    "description" : "This role provides all application permissions.",
-    "availablePermissions" : [ ],
-    "selectedPermissions" : [ ]
-  }, {
-    "id" : 2,
-    "name" : "Field officer",
-    "description" : "A field officer role allows the user to add client and loans and view reports but nothing else.",
-    "availablePermissions" : [ ],
-    "selectedPermissions" : [ ]
-  }, {
-    "id" : 3,
-    "name" : "Data Entry (Portfolio only)",
-    "description" : "This role allows a user full permissions around client and loan functionality but nothing else.",
-    "availablePermissions" : [ ],
-    "selectedPermissions" : [ ]
-  }, {
-    "id" : 4,
-    "name" : "Credit Committe Member",
-    "description" : "This role allows a user to approve reject or withdraw loans (with reporting).",
-    "availablePermissions" : [ ],
-    "selectedPermissions" : [ ]
-  }, {
-    "id" : 5,
-    "name" : "Manager",
-    "description" : "This role allows a manager to do anything related to portfolio management and also view all reports.",
-    "availablePermissions" : [ ],
-    "selectedPermissions" : [ ]
-  } ]
+  "allowedOffices": [
+    {
+      "id": 1,
+      "name": "Head Office",
+      "nameDecorated": "Head Office"
+    },
+    {
+      "id": 10,
+      "name": "Myanmar Regional Office",
+      "nameDecorated": "....Myanmar Regional Office"
+    },
+    {
+      "id": 7,
+      "name": "Myanmar 1",
+      "nameDecorated": "........Myanmar 1"
+    },...
+  ],
+  "availableRoles": [
+    {
+      "id": 1,
+      "name": "Super user",
+      "description": "This role provides all application permissions."
+    },
+    {
+      "id": 2,
+      "name": "Field officer",
+      "description": "A field officer role allows the user to add client and loans and view reports but nothing else."
+    },
+    {
+      "id": 3,
+      "name": "Data Entry (Portfolio only)",
+      "description": "This role allows a user full permissions around client and loan functionality but nothing else."
+    },...
+  ],
+  "selectedRoles": []
 }
 </code>
 	    </div>
@@ -3106,40 +2915,33 @@ No Request Body
 	    <div class="method-example">
 	        <code class="method-declaration">GET https://Domain Name/api/v1/users/1</code>
 <code class="method-response">{
-  "id" : 1,
-  "officeId" : 1,
-  "officeName" : "Demo MFI Head Office",
-  "username" : "mifos",
-  "firstname" : "App",
-  "lastname" : "Administrator",
-  "email" : "demomfi@mifos.org",
-  "selectedRoles" : [ {
-    "id" : 1,
-    "name" : "Super user",
-    "description" : "This role provides all application permissions.",
-    "availablePermissions" : [ ],
-    "selectedPermissions" : [ {
-      "id" : 1,
-      "name" : "User administration ALL",
-      "description" : "An application user will have permission to execute all tasks related to user administration.",
-      "code" : "USER_ADMINISTRATION_SUPER_USER_ROLE"
-    }, {
-      "id" : 4,
-      "name" : "Reporting ALL",
-      "description" : "An application user will have permission to execute and view all reports.",
-      "code" : "REPORTING_SUPER_USER_ROLE"
-    }, {
-      "id" : 3,
-      "name" : "Portfolio management ALL",
-      "description" : "An application user will have permission to execute all tasks related to portfolio management.",
-      "code" : "PORTFOLIO_MANAGEMENT_SUPER_USER_ROLE"
-    }, {
-      "id" : 2,
-      "name" : "Organisation adminsitration ALL",
-      "description" : "An application user will have permission to execute all tasks related to organisation administration.",
-      "code" : "ORGANISATION_ADMINISTRATION_SUPER_USER_ROLE"
-    } ]
-  } ]
+  "id": 1,
+  "username": "mifos",
+  "officeId": 1,
+  "officeName": "Head Office",
+  "firstname": "App(test)",
+  "lastname": "Administrator",
+  "email": "demomfi@mifos.org",
+  "allowedOffices": [],
+  "availableRoles": [
+    {
+      "id": 2,
+      "name": "Field officer",
+      "description": "A field officer role allows the user to add client and loans and view reports but nothing else."
+    },
+    {
+      "id": 3,
+      "name": "Data Entry (Portfolio only)",
+      "description": "This role allows a user full permissions around client and loan functionality but nothing else."
+    },...
+  ],
+  "selectedRoles": [
+    {
+      "id": 1,
+      "name": "Super user",
+      "description": "This role provides all application permissions."
+    }
+  ]
 }
 </code>
 	    </div>
@@ -3175,7 +2977,7 @@ Request body:
 </code>
 <code class="method-response">
 {
-  "entityId": 11
+  "resourceId": 11
 }
 </code>
 	    </div>
@@ -3202,7 +3004,7 @@ Request body:
 </code>
 <code class="method-response">
 {
-  "entityId": 3
+  "resourceId": 3
 }
 </code>
 	    </div>
@@ -3221,7 +3023,7 @@ Content-Type: application/json
 No Request Body
 </code>
 <code class="method-response">{
- "entityId": 20
+ "resourceId": 20
 }
 </code>
 	    </div>
@@ -3274,48 +3076,6 @@ No Request Body
 	    </div>
 	</div>
    
-    <a id="roles_template" name="roles_template" class="old-syle-anchor">&nbsp;</a>
-	<div class="method-section">
-	    <div class="method-description">
-	        <h4>Retrieve Role Details Template</h4>
-                <p>This is a convenience resource.  It can be useful when building maintenance user interface screens for client applications. The template data returned consists of any or all of:
-                    <ul>
-                    <li class=normalli>Field Defaults</li>   
-                    <li class=normalli>Allowed Value Lists</li>    
-                    </ul>
-                </p>
-	        <p>Example Request: </p>
-	        <div class=apiClick>roles/template</div>
-	    </div>
-	    <div class="method-example">
-	        <code class="method-declaration">GET https://Domain Name/api/v1/roles/template</code>
-<code class="method-response">{
-  "availablePermissions" : [ {
-    "id" : 1,
-    "name" : "User administration ALL",
-    "description" : "An application user will have permission to execute all tasks related to user administration.",
-    "code" : "USER_ADMINISTRATION_SUPER_USER_ROLE"
-  }, {
-    "id" : 2,
-    "name" : "Organisation adminsitration ALL",
-    "description" : "An application user will have permission to execute all tasks related to organisation administration.",
-    "code" : "ORGANISATION_ADMINISTRATION_SUPER_USER_ROLE"
-  }, {
-    "id" : 3,
-    "name" : "Portfolio management ALL",
-    "description" : "An application user will have permission to execute all tasks related to portfolio management.",
-    "code" : "PORTFOLIO_MANAGEMENT_SUPER_USER_ROLE"
-  }, {
-    "id" : 4,
-    "name" : "Reporting ALL",
-    "description" : "An application user will have permission to execute and view all reports.",
-    "code" : "REPORTING_SUPER_USER_ROLE"
-  }...]
-}
-</code>
-	    </div>
-	</div>
-   
     <a id="roles_retrieve" name="roles_retrieve" class="old-syle-anchor">&nbsp;</a>
 	<div class="method-section">
 	    <div class="method-description">
@@ -3323,37 +3083,14 @@ No Request Body
 	        <p>Example Requests: </p>
 	        <div class=apiClick>roles/1</div>
                 <br><br>
-	        <div class=apiClick>roles/1?template=true</div>
-                <br><br>
-	        <div class=apiClick>roles/1?fields=name,selectedPermissions</div>
+	        <div class=apiClick>roles/1?fields=name</div>
 	    </div>
 	    <div class="method-example">
 	        <code class="method-declaration">GET https://Domain Name/api/v1/roles/{roleId}</code>
 <code class="method-response">{
   "id" : 1,
   "name" : "Super user",
-  "description" : "This role provides all application permissions.",
-  "selectedPermissions" : [ {
-    "id" : 1,
-    "name" : "User administration ALL",
-    "description" : "An application user will have permission to execute all tasks related to user administration.",
-    "code" : "USER_ADMINISTRATION_SUPER_USER_ROLE"
-  }, {
-    "id" : 4,
-    "name" : "Reporting ALL",
-    "description" : "An application user will have permission to execute and view all reports.",
-    "code" : "REPORTING_SUPER_USER_ROLE"
-  }, {
-    "id" : 3,
-    "name" : "Portfolio management ALL",
-    "description" : "An application user will have permission to execute all tasks related to portfolio management.",
-    "code" : "PORTFOLIO_MANAGEMENT_SUPER_USER_ROLE"
-  }, {
-    "id" : 2,
-    "name" : "Organisation adminsitration ALL",
-    "description" : "An application user will have permission to execute all tasks related to organisation administration.",
-    "code" : "ORGANISATION_ADMINISTRATION_SUPER_USER_ROLE"
-  } ]
+  "description" : "This role provides all application permissions."
 }
 </code>
 	    </div>
@@ -3365,7 +3102,7 @@ No Request Body
 	        <h4>Create a New Role</h4>
                 <table class=matrixHeading>
                     <tr class="matrixHeadingBG"><td><div class="mifosXHeading2">Mandatory Fields</div></td></tr>
-                    <tr class=alt><td>name, description, permissions</td></tr>
+                    <tr class=alt><td>name, description</td></tr>
                 </table>
 	    </div>
 	    <div class="method-example">
@@ -3375,12 +3112,11 @@ Content-Type: application/json
 Request body:
 { 
  "name": "Another Role Name", 
- "description": "A description outlining the purpose of this role in relation to the application.", 
- "permissions": [1, 2, 3] 
+ "description": "A description outlining the purpose of this role in relation to the application."
 }
 </code>
 <code class="method-response">{
-  "entityId": 8
+  "resourceId": 8
 }
 </code>
 	    </div>
@@ -3397,19 +3133,83 @@ Request body:
 Content-Type: application/json
 Request body:
 { 
- "name": "Updated Role Name", 
- "permissions": [1] 
+ "name": "Updated Role Name"
 }
 </code>
 <code class="method-response">{
-  "entityId": 8
+  "resourceId": 8
 }
 </code>
 	    </div>
 	</div>
     
+    <a id="rolespermissions_retrieve" name="rolespermissions_retrieve" class="old-syle-anchor">&nbsp;</a>
+	<div class="method-section">
+	    <div class="method-description">
+	        <h4>Retrieve a Role's Permissions</h4>
+	        <p>Example Requests: </p>
+	        <div class=apiClick>roles/1/permissions</div>
+	    </div>
+	    <div class="method-example">
+	        <code class="method-declaration">GET https://Domain Name/api/v1/roles/{roleId}/permissions</code>
+<code class="method-response">{
+  "id": 1,
+  "name": "Super user",
+  "description": "This role provides all application permissions.",
+  "permissionUsageData": [
+    {
+      "grouping": "authorisation",
+      "code": "READ_PERMISSION",
+      "entityName": "PERMISSION",
+      "actionName": "READ",
+      "selected": false,
+      "isMakerChecker": false
+    },
+    {
+      "grouping": "authorisation",
+      "code": "CREATE_ROLE",
+      "entityName": "ROLE",
+      "actionName": "CREATE",
+      "selected": false,
+      "isMakerChecker": false
+    },
+    {
+      "grouping": "authorisation",
+      "code": "DELETE_ROLE",
+      "entityName": "ROLE",
+      "actionName": "DELETE",
+      "selected": false,
+      "isMakerChecker": false
+    },...]
+}
+</code>
+	    </div>
+	</div>
     
-    <!-- start of roles api docs -->
+    <a id="rolespermissions_update" name="rolespermissions_update" class="old-syle-anchor">&nbsp;</a>
+	<div class="method-section">
+	    <div class="method-description">
+	        <h4>Update a Role's Permissions</h4>
+	    </div>
+	    <div class="method-example">
+	        <code class="method-declaration">PUT https://Domain Name/api/v1/roles/{roleId}/permissions</code>
+<code class="method-request">PUT roles/8
+Content-Type: application/json
+Request body:
+{
+ADJUST_LOAN: "true",
+ALL_FUNCTIONS: "true",
+ALL_FUNCTIONS_READ: "true"
+}
+</code>
+<code class="method-response">{
+  "resourceId": 8
+}
+</code>
+	    </div>
+	</div>
+    
+    <!-- start of permissions api docs -->
 	<a id="permissions" name="permissions" class="old-syle-anchor">&nbsp;</a>
 	<div class="method-section">
 		<div class="method-description">
@@ -3425,31 +3225,35 @@ Request body:
 	        <p>Example Requests: </p>
 	        <div class=apiClick>permissions</div>
                 <br><br>
-                <div class=apiClick>permissions?fields=id,code</div>
+                <div class=apiClick>permissions?fields=grouping,code</div>
 	    </div>
 	    <div class="method-example">
 	        <code class="method-declaration">GET https://Domain Name/api/v1/permissions</code>
-<code class="method-response">[ {
-  "id" : 1,
-  "name" : "User administration ALL",
-  "description" : "An application user will have permission to execute all tasks related to user administration.",
-  "code" : "USER_ADMINISTRATION_SUPER_USER_ROLE"
-}, {
-  "id" : 2,
-  "name" : "Organisation adminsitration ALL",
-  "description" : "An application user will have permission to execute all tasks related to organisation administration.",
-  "code" : "ORGANISATION_ADMINISTRATION_SUPER_USER_ROLE"
-}, {
-  "id" : 3,
-  "name" : "Portfolio management ALL",
-  "description" : "An application user will have permission to execute all tasks related to portfolio management.",
-  "code" : "PORTFOLIO_MANAGEMENT_SUPER_USER_ROLE"
-}, {
-  "id" : 4,
-  "name" : "Reporting ALL",
-  "description" : "An application user will have permission to execute and view all reports.",
-  "code" : "REPORTING_SUPER_USER_ROLE"
-}, ... ]
+<code class="method-response">[
+  {
+    "grouping": "authorisation",
+    "code": "READ_PERMISSION",
+    "entityName": "PERMISSION",
+    "actionName": "READ",
+    "selected": true,
+    "isMakerChecker": false
+  },
+  {
+    "grouping": "authorisation",
+    "code": "CREATE_ROLE",
+    "entityName": "ROLE",
+    "actionName": "CREATE",
+    "selected": true,
+    "isMakerChecker": true
+  },
+  {
+    "grouping": "authorisation",
+    "code": "DELETE_ROLE",
+    "entityName": "ROLE",
+    "actionName": "DELETE",
+    "selected": true,
+    "isMakerChecker": true
+  }, ... ]
 </code>
 	    </div>
 	</div>
@@ -3477,8 +3281,6 @@ Request body:
             <tr class="alt"><td><a href="#loanproducts">LOAN PRODUCT</a></td><td>loanproducts</td><td><a href="#loanproducts_create">Create a Loan Product</a></td><td><a href="#loanproducts_list">List Loan Products</a></td><td></td><td></td></tr>
             <tr><td></td><td>loanproducts/{productId}</td><td></td><td><a href="#loanproducts_retrieve">Retrieve a Loan Product</a></td><td><a href="#loanproducts_update">Update a Loan Product</a></td><td></td></tr>
             <tr class="alt"><td><a href="#configs">CONFIGURATION</a></td><td>configurations/currency</td><td></td><td><a href="#configs_currencyretrieve">Retrieve Currency Configuration</a></td><td><a href="#configs_currencyupdate">Update Currency Configuration</a></td><td></td></tr>
-            <tr><td><a href="#additionalfields">ADDITIONAL FIELDS</a></td><td>additionalfields (deprecated)</td><td></td><td><a href="#additionalfields_list">List Additional Fields Sets</a></td><td></td><td></td></tr>
-            <tr class="alt"><td></td><td>additionalfields/{Type}/{Set}/{id} (deprecated)</td><td><a href="#additionalfields_update">Update Additional Fields</a></td><td><a href="#additionalfields_retrieve">Retrieve Additional Fields</a></td><td></td><td></td></tr>
             <tr><td><a href="#datatables">DATA TABLE</a></td><td>datatables</td><td></td><td><a href="#datatables_list">List Data Tables</a></td><td></td><td></td></tr>
             <tr class="alt"><td></td><td>datatables/register/{datatable}/{apptable}</td><td><a href="#datatables_register">Register Data Table</a></td><td></td><td></td><td></td></tr>
             <tr><td></td><td>datatables/deregister/{datatable}</td><td><a href="#datatables_deregister">Deregister Data Table</a></td><td></td><td></td><td></td></tr>
@@ -3490,7 +3292,8 @@ Request body:
             <tr><td><a href="#users">USER</a></td><td>users</td><td><a href="#users_create">Create a User</a></td><td><a href="#users_list">List Users</a></td><td></td><td></td></tr>
             <tr class="alt"><td></td><td>users/{userId}</td><td></td><td><a href="#users_retrieve">Retrieve a User</a></td><td><a href="#users_update">Update a User</a></td><td><a href="#users_delete">Delete a User</a></td></tr>
             <tr><td><a href="#roles">ROLE</a></td><td>roles</td><td><a href="#roles_create">Create a New Role</a></td><td><a href="#roles_list">List Roles</a></td><td></td><td></td></tr>
-            <tr class="alt"><td></td><td>roles/{roleId}</td><td></td><td><a href="#roles_retrieve">Retrieve a Role</a></td><td><a href="#roles_update">Update a Role</a></td><td></td></tr>
+            <tr><td></td><td>roles/{roleId}</td><td></td><td><a href="#roles_retrieve">Retrieve a Role</a></td><td><a href="#roles_update">Update a Role</a></td><td></td></tr>
+            <tr class="alt"><td></td><td>roles/{roleId}/permissions</td><td></td><td><a href="#rolespermissions_retrieve">Retrieve a Role's Permissions</a></td><td><a href="#rolespermissions_update">Update a Role's Permissions</a></td><td></td></tr>
             <tr><td><a href="#permissions">PERMISSION</a></td><td>permissions</td><td></td><td><a href="#permissions_list">List Application Permissions</a></td><td></td><td></td></tr>
         </table>
         <br>
@@ -3502,7 +3305,7 @@ Request body:
             <tr><td>offices/template</td><td><a href="#offices_template">Retrieve Office Details Template</a></td></tr>
             <tr class="alt"><td>loanproducts/template</td><td><a href="#loanproducts_template">Retrieve Loan Product Details Template</a></td></tr>
             <tr><td>users/template</td><td><a href="#users_template">Retrieve User Details Template</a></td></tr>
-            <tr class="alt"><td>roles/template</td><td><a href="#roles_template">Retrieve Role Details Template</a></td></tr>
+            <tr class="alt"><td>audit/searchtemplate</td><td><a href="#audit_searchtemplate">Retrieve Audit Search Data</a></td></tr>
         </table>
     </div>
 </div>
