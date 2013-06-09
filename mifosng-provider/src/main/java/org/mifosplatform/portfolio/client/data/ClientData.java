@@ -1,163 +1,197 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.client.data;
 
 import java.util.Collection;
 import java.util.List;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.builder.CompareToBuilder;
+import org.apache.commons.lang.builder.EqualsBuilder;
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.joda.time.LocalDate;
-import org.mifosplatform.organisation.office.data.OfficeLookup;
+import org.mifosplatform.infrastructure.core.data.EnumOptionData;
+import org.mifosplatform.organisation.office.data.OfficeData;
+import org.mifosplatform.portfolio.group.data.GroupGeneralData;
 
 /**
  * Immutable data object representing client data.
  */
-final public class ClientData {
+final public class ClientData implements Comparable<ClientData> {
 
     private final Long id;
     private final String accountNo;
+    private final String externalId;
+
+    private final EnumOptionData status;
+    @SuppressWarnings("unused")
+    private final Boolean active;
+    private final LocalDate activationDate;
+
     private final String firstname;
+    private final String middlename;
     private final String lastname;
-    private final String clientOrBusinessName;
+    private final String fullname;
     private final String displayName;
+
     private final Long officeId;
     private final String officeName;
-    private final String externalId;
-    private final LocalDate joinedDate;
+
     private final String imageKey;
     @SuppressWarnings("unused")
     private final Boolean imagePresent;
 
-    private final List<OfficeLookup> allowedOffices;
+    // associations
+    private final Collection<GroupGeneralData> groups;
 
-    private final ClientData currentChange;
-    private final Collection<ClientData> allChanges;
+    // template
+    private final Collection<OfficeData> officeOptions;
 
-    private static String buildDisplayNameFrom(final String firstname, final String lastname) {
-        String displayName = null;
-        StringBuilder displayNameBuilder = new StringBuilder();
-        if (StringUtils.isNotBlank(firstname)) {
-            displayNameBuilder.append(firstname).append(' ');
-        }
-
-        if (StringUtils.isNotBlank(lastname)) {
-            displayNameBuilder.append(lastname);
-            displayName = displayNameBuilder.toString();
-        }
-        return displayName;
+    public static ClientData template(final Long officeId, final LocalDate joinedDate, final Collection<OfficeData> officeOptions) {
+        return new ClientData(null, null, officeId, null, null, null, null, null, null, null, null, joinedDate, null, officeOptions, null);
     }
 
-    public static ClientData dataChangeInstance(final Long id, final Long officeId, final String externalId, final String firstname,
-            final String lastname, final String clientOrBusinessName, final LocalDate joiningDate) {
+    public static ClientData templateOnTop(final ClientData clientData, final List<OfficeData> allowedOffices) {
 
-        String firstnameValue = firstname;
-        String lastnameValue = lastname;
-        if (StringUtils.isNotBlank(clientOrBusinessName)) {
-            firstnameValue = null;
-            lastnameValue = clientOrBusinessName;
-        }
-        final String displayName = buildDisplayNameFrom(firstnameValue, lastnameValue);
-
-        return new ClientData(null, officeId, null, id, firstnameValue, lastnameValue, displayName, externalId, joiningDate, null, null, null,
-                null);
+        return new ClientData(clientData.accountNo, clientData.status, clientData.officeId, clientData.officeName, clientData.id,
+                clientData.firstname, clientData.middlename, clientData.lastname, clientData.fullname, clientData.displayName,
+                clientData.externalId, clientData.activationDate, clientData.imageKey, allowedOffices, clientData.groups);
     }
 
-    public static ClientData integrateChanges(final ClientData clientData, ClientData currentChange, final Collection<ClientData> allChanges) {
-        String firstname = clientData.firstname;
-        String lastname = clientData.lastname;
-        if (StringUtils.isNotBlank(clientData.clientOrBusinessName)) {
-            firstname = null;
-            lastname = clientData.clientOrBusinessName;
-        }
-        final String displayName = buildDisplayNameFrom(firstname, lastname);
-        return new ClientData(clientData.accountNo, clientData.officeId, clientData.officeName, clientData.id, firstname, lastname, displayName,
-                clientData.externalId, clientData.joinedDate, clientData.imageKey, clientData.allowedOffices, currentChange, allChanges);
+    public static ClientData setParentGroups(final ClientData clientData, final Collection<GroupGeneralData> parentGroups) {
+        return new ClientData(clientData.accountNo, clientData.status, clientData.officeId, clientData.officeName, clientData.id,
+                clientData.firstname, clientData.middlename, clientData.lastname, clientData.fullname, clientData.displayName,
+                clientData.externalId, clientData.activationDate, clientData.imageKey, clientData.officeOptions, parentGroups);
     }
 
-    public static ClientData template(final Long officeId, final LocalDate joinedDate, final List<OfficeLookup> allowedOffices) {
-        return new ClientData(null, officeId, null, null, null, null, null, null, joinedDate, null, allowedOffices, null, null);
-    }
-
-    public static ClientData templateOnTop(final ClientData clientData, final List<OfficeLookup> allowedOffices) {
-
-        String firstname = clientData.firstname;
-        String lastname = clientData.lastname;
-        if (StringUtils.isNotBlank(clientData.clientOrBusinessName)) {
-            firstname = null;
-            lastname = clientData.clientOrBusinessName;
-        }
-        final String displayName = buildDisplayNameFrom(firstname, lastname);
-        return new ClientData(clientData.accountNo, clientData.officeId, clientData.officeName, clientData.id, firstname, lastname, displayName,
-                clientData.externalId, clientData.joinedDate, clientData.imageKey, allowedOffices, clientData.currentChange,
-                clientData.allChanges);
-    }
-
-    public static ClientData clientIdentifier(final Long id, final String accountIdentifier, final String firstname, final String lastname, final Long officeId,
+    public static ClientData clientIdentifier(final Long id, final String accountNo, final EnumOptionData status, final String firstname,
+            final String middlename, final String lastname, final String fullname, final String displayName, final Long officeId,
             final String officeName) {
 
-        final String displayName = buildDisplayNameFrom(firstname, lastname);
-
-        return new ClientData(accountIdentifier, officeId, officeName, id, firstname, lastname, displayName, null, null, null, null, null, null);
+        return new ClientData(accountNo, status, officeId, officeName, id, firstname, middlename, lastname, fullname, displayName, null,
+                null, null, null, null);
     }
 
-    public ClientData(final String accountNo, final Long officeId, final String officeName, final Long id, final String firstname, final String lastname,
-            final String displayName, final String externalId, final LocalDate joinedDate, final String imageKey,
-            final List<OfficeLookup> allowedOffices, final ClientData currentChange, final Collection<ClientData> allChanges) {
+    public static ClientData lookup(final Long id, final String displayName, final Long officeId, final String officeName) {
+        return new ClientData(null, null, officeId, officeName, id, null, null, null, null, displayName, null, null, null, null, null);
+    }
+
+    public static ClientData instance(final String accountNo, final EnumOptionData status, final Long officeId, final String officeName,
+            final Long id, final String firstname, final String middlename, final String lastname, final String fullname,
+            final String displayName, final String externalId, final LocalDate activationDate, final String imageKey) {
+        return new ClientData(accountNo, status, officeId, officeName, id, firstname, middlename, lastname, fullname, displayName,
+                externalId, activationDate, imageKey, null, null);
+    }
+
+    private ClientData(final String accountNo, final EnumOptionData status, final Long officeId, final String officeName, final Long id,
+            final String firstname, final String middlename, final String lastname, final String fullname, final String displayName,
+            final String externalId, final LocalDate activationDate, final String imageKey, final Collection<OfficeData> allowedOffices,
+            final Collection<GroupGeneralData> groups) {
         this.accountNo = accountNo;
+        this.status = status;
+        if (status != null) {
+            active = status.getId().equals(300L);
+        } else {
+            active = null;
+        }
         this.officeId = officeId;
         this.officeName = officeName;
         this.id = id;
         this.firstname = StringUtils.defaultIfEmpty(firstname, null);
-
-        /*** unset last name for business name **/
-        if (StringUtils.isBlank(firstname)) {
-            this.lastname = null;
-            this.clientOrBusinessName = lastname;
-        } else {
-            this.lastname = lastname;
-            this.clientOrBusinessName = null;
-        }
-        this.displayName = displayName;
+        this.middlename = StringUtils.defaultIfEmpty(middlename, null);
+        this.lastname = StringUtils.defaultIfEmpty(lastname, null);
+        this.fullname = StringUtils.defaultIfEmpty(fullname, null);
+        this.displayName = StringUtils.defaultIfEmpty(displayName, null);
         this.externalId = StringUtils.defaultIfEmpty(externalId, null);
-        this.joinedDate = joinedDate;
+        this.activationDate = activationDate;
         this.imageKey = imageKey;
         if (imageKey != null) {
             this.imagePresent = Boolean.TRUE;
         } else {
             this.imagePresent = null;
         }
-        this.allowedOffices = allowedOffices;
-        this.currentChange = currentChange;
-        this.allChanges = allChanges;
-    }
 
-    public String displayName() {
-        return this.displayName;
-    }
+        // associations
+        this.groups = groups;
 
-    public String officeName() {
-        return this.officeName;
-    }
-
-    private boolean imageKeyExists() {
-        return StringUtils.isNotBlank(this.imageKey);
-    }
-
-    public boolean imageKeyDoesNotExist() {
-        return !imageKeyExists();
-    }
-
-    public String imageKey() {
-        return this.imageKey;
+        // template
+        this.officeOptions = allowedOffices;
     }
 
     public Long id() {
         return this.id;
     }
 
+    public String displayName() {
+        return this.displayName;
+    }
+
     public Long officeId() {
         return this.officeId;
     }
 
-    public ClientData currentChange() {
-        return this.currentChange;
+    public String officeName() {
+        return this.officeName;
+    }
+
+    public String imageKey() {
+        return this.imageKey;
+    }
+
+    public boolean imageKeyDoesNotExist() {
+        return !imageKeyExists();
+    }
+
+    private boolean imageKeyExists() {
+        return StringUtils.isNotBlank(this.imageKey);
+    }
+
+    @Override
+    public int compareTo(final ClientData obj) {
+        if (obj == null) { return -1; }
+        return new CompareToBuilder() //
+                .append(this.id, obj.id) //
+                .append(this.displayName, obj.displayName) //
+                .toComparison();
+    }
+
+    @Override
+    public boolean equals(final Object obj) {
+        if (obj == null) { return false; }
+        if (obj == this) { return true; }
+        if (obj.getClass() != getClass()) { return false; }
+        ClientData rhs = (ClientData) obj;
+        return new EqualsBuilder() //
+                .append(this.id, rhs.id) //
+                .append(this.displayName, rhs.displayName) //
+                .isEquals();
+    }
+
+    @Override
+    public int hashCode() {
+        return new HashCodeBuilder(17, 37) //
+                .append(this.id) //
+                .append(this.displayName) //
+                .toHashCode();
+    }
+
+    // TODO - kw - look into removing usage of the getters below
+    public String getExternalId() {
+        return this.externalId;
+    }
+
+    public String getFirstname() {
+        return this.firstname;
+    }
+
+    public String getLastname() {
+        return this.lastname;
+    }
+
+    public LocalDate getActivationDate() {
+        return this.activationDate;
     }
 }

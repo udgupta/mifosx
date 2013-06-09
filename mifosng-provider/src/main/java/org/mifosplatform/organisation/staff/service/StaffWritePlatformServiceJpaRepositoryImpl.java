@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.organisation.staff.service;
 
 import java.util.Map;
@@ -11,7 +16,6 @@ import org.mifosplatform.infrastructure.security.service.PlatformSecurityContext
 import org.mifosplatform.organisation.office.domain.Office;
 import org.mifosplatform.organisation.office.domain.OfficeRepository;
 import org.mifosplatform.organisation.office.exception.OfficeNotFoundException;
-import org.mifosplatform.organisation.staff.command.StaffCommand;
 import org.mifosplatform.organisation.staff.domain.Staff;
 import org.mifosplatform.organisation.staff.domain.StaffRepository;
 import org.mifosplatform.organisation.staff.exception.StaffNotFoundException;
@@ -50,8 +54,7 @@ public class StaffWritePlatformServiceJpaRepositoryImpl implements StaffWritePla
         try {
             context.authenticatedUser();
 
-            final StaffCommand staffCommand = this.fromApiJsonDeserializer.commandFromApiJson(command.json());
-            staffCommand.validateForCreate();
+            this.fromApiJsonDeserializer.validateForCreate(command.json());
 
             final Long officeId = command.longValueOfParameterNamed("officeId");
 
@@ -62,8 +65,10 @@ public class StaffWritePlatformServiceJpaRepositoryImpl implements StaffWritePla
 
             this.staffRepository.save(staff);
 
-            return new CommandProcessingResultBuilder().withCommandId(command.commandId()).withEntityId(staff.getId())
-                    .withOfficeId(officeId).build();
+            return new CommandProcessingResultBuilder() //
+                    .withCommandId(command.commandId()) //
+                    .withEntityId(staff.getId()).withOfficeId(officeId) //
+                    .build();
         } catch (DataIntegrityViolationException dve) {
             handleStaffDataIntegrityIssues(command, dve);
             return CommandProcessingResult.empty();
@@ -77,8 +82,7 @@ public class StaffWritePlatformServiceJpaRepositoryImpl implements StaffWritePla
         try {
             context.authenticatedUser();
 
-            final StaffCommand staffCommand = this.fromApiJsonDeserializer.commandFromApiJson(command.json());
-            staffCommand.validateForUpdate();
+            this.fromApiJsonDeserializer.validateForUpdate(command.json());
 
             final Staff staffForUpdate = this.staffRepository.findOne(staffId);
             if (staffForUpdate == null) { throw new StaffNotFoundException(staffId); }

@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.infrastructure.core.serialization;
 
 import java.math.BigDecimal;
@@ -13,7 +18,9 @@ import java.util.Set;
 
 import org.apache.commons.lang.StringUtils;
 import org.joda.time.LocalDate;
+import org.joda.time.MonthDay;
 import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 import org.mifosplatform.infrastructure.core.data.ApiParameterError;
 import org.mifosplatform.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.springframework.format.number.NumberFormatter;
@@ -27,7 +34,7 @@ import com.google.gson.JsonPrimitive;
  * Helper class to extract values of json named attributes.
  */
 public class JsonParserHelper {
-    
+
     public boolean parameterExists(final String parameterName, final JsonElement element) {
         return element.getAsJsonObject().has(parameterName);
     }
@@ -133,6 +140,35 @@ public class JsonParserHelper {
         return value;
     }
 
+    /**
+     * Method used to extract integers from unformatted strings. Ex: "1" ,
+     * "100002" etc
+     * 
+     * Please note that this method does not support extracting Integers from
+     * locale specific formatted strings Ex "1,000" etc
+     * 
+     * @param parameterName
+     * @param element
+     * @param parametersPassedInRequest
+     * @return
+     */
+    public Integer extractIntegerSansLocaleNamed(final String parameterName, final JsonElement element,
+            final Set<String> parametersPassedInRequest) {
+        Integer intValue = null;
+        if (element.isJsonObject()) {
+            JsonObject object = element.getAsJsonObject();
+            if (object.has(parameterName) && object.get(parameterName).isJsonPrimitive()) {
+                parametersPassedInRequest.add(parameterName);
+                JsonPrimitive primitive = object.get(parameterName).getAsJsonPrimitive();
+                final String stringValue = primitive.getAsString();
+                if (StringUtils.isNotBlank(stringValue)) {
+                    intValue = convertToIntegerSanLocale(stringValue, parameterName);
+                }
+            }
+        }
+        return intValue;
+    }
+
     public String extractDateFormatParameter(final JsonObject element) {
         String value = null;
         if (element.isJsonObject()) {
@@ -141,6 +177,20 @@ public class JsonParserHelper {
             final String dateFormatParameter = "dateFormat";
             if (object.has(dateFormatParameter) && object.get(dateFormatParameter).isJsonPrimitive()) {
                 final JsonPrimitive primitive = object.get(dateFormatParameter).getAsJsonPrimitive();
+                value = primitive.getAsString();
+            }
+        }
+        return value;
+    }
+
+    public String extractMonthDayFormatParameter(final JsonObject element) {
+        String value = null;
+        if (element.isJsonObject()) {
+            JsonObject object = element.getAsJsonObject();
+
+            final String monthDayFormatParameter = "monthDayFormat";
+            if (object.has(monthDayFormatParameter) && object.get(monthDayFormatParameter).isJsonPrimitive()) {
+                final JsonPrimitive primitive = object.get(monthDayFormatParameter).getAsJsonPrimitive();
                 value = primitive.getAsString();
             }
         }
@@ -179,6 +229,19 @@ public class JsonParserHelper {
         return arrayValue;
     }
 
+    public JsonArray extractJsonArrayNamed(final String parameterName, final JsonElement element) {
+        JsonArray jsonArray = null;
+
+        if (element.isJsonObject()) {
+            JsonObject object = element.getAsJsonObject();
+            if (object.has(parameterName)) {
+                jsonArray = object.get(parameterName).getAsJsonArray();
+            }
+        }
+
+        return jsonArray;
+    }
+
     /**
      * Used with the local date is in array format
      */
@@ -199,6 +262,40 @@ public class JsonParserHelper {
                 Integer day = dateArray.get(2).getAsInt();
 
                 value = new LocalDate().withYearOfEra(year).withMonthOfYear(month).withDayOfMonth(day);
+            }
+
+        }
+        return value;
+    }
+
+    public MonthDay extractMonthDayNamed(final String parameterName, final JsonElement element) {
+
+        MonthDay value = null;
+
+        if (element.isJsonObject()) {
+            JsonObject object = element.getAsJsonObject();
+
+            final String monthDayFormat = extractMonthDayFormatParameter(object);
+            final Locale clientApplicationLocale = extractLocaleParameter(object);
+            value = extractMonthDayNamed(parameterName, object, monthDayFormat, clientApplicationLocale);
+        }
+        return value;
+    }
+
+    public MonthDay extractMonthDayNamed(final String parameterName, final JsonObject element, final String dateFormat,
+            final Locale clientApplicationLocale) {
+        MonthDay value = null;
+        if (element.isJsonObject()) {
+            JsonObject object = element.getAsJsonObject();
+
+            if (object.has(parameterName) && object.get(parameterName).isJsonPrimitive()) {
+
+                final JsonPrimitive primitive = object.get(parameterName).getAsJsonPrimitive();
+                final String valueAsString = primitive.getAsString();
+                if (StringUtils.isNotBlank(valueAsString)) {
+                    DateTimeFormatter formatter = DateTimeFormat.forPattern(dateFormat).withLocale(clientApplicationLocale);
+                    value = MonthDay.parse(valueAsString.toLowerCase(clientApplicationLocale), formatter);
+                }
             }
 
         }
@@ -339,6 +436,30 @@ public class JsonParserHelper {
             ApiParameterError error = ApiParameterError.parameterError("validation.msg.invalid.integer.format", "The parameter "
                     + parameterName + " has value: " + numericalValueFormatted + " which is invalid integer value for provided locale of ["
                     + clientApplicationLocale.toString() + "].", parameterName, numericalValueFormatted, clientApplicationLocale);
+            error.setValue(numericalValueFormatted);
+            dataValidationErrors.add(error);
+
+            throw new PlatformApiDataValidationException("validation.msg.validation.errors.exist", "Validation errors exist.",
+                    dataValidationErrors);
+        }
+    }
+
+    public Integer convertToIntegerSanLocale(final String numericalValueFormatted, final String parameterName) {
+
+        try {
+            Integer number = null;
+
+            if (StringUtils.isNotBlank(numericalValueFormatted)) {
+                number = Integer.valueOf(numericalValueFormatted);
+            }
+
+            return number;
+        } catch (NumberFormatException e) {
+
+            List<ApiParameterError> dataValidationErrors = new ArrayList<ApiParameterError>();
+            ApiParameterError error = ApiParameterError.parameterError("validation.msg.invalid.integer", "The parameter " + parameterName
+                    + " has value: " + numericalValueFormatted + " which is invalid integer.", parameterName, numericalValueFormatted);
+            error.setValue(numericalValueFormatted);
             dataValidationErrors.add(error);
 
             throw new PlatformApiDataValidationException("validation.msg.validation.errors.exist", "Validation errors exist.",
@@ -389,6 +510,7 @@ public class JsonParserHelper {
             ApiParameterError error = ApiParameterError.parameterError("validation.msg.invalid.decimal.format", "The parameter "
                     + parameterName + " has value: " + numericalValueFormatted + " which is invalid decimal value for provided locale of ["
                     + clientApplicationLocale.toString() + "].", parameterName, numericalValueFormatted, clientApplicationLocale);
+            error.setValue(numericalValueFormatted);
             dataValidationErrors.add(error);
 
             throw new PlatformApiDataValidationException("validation.msg.validation.errors.exist", "Validation errors exist.",

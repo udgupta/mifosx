@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.infrastructure.core.api;
 
 import java.lang.reflect.Type;
@@ -18,7 +23,7 @@ public class JodaLocalDateAdapter implements JsonSerializer<LocalDate> {
 
     @SuppressWarnings("unused")
     @Override
-    public JsonElement serialize(LocalDate src, Type typeOfSrc, JsonSerializationContext context) {
+    public JsonElement serialize(final LocalDate src, final Type typeOfSrc, final JsonSerializationContext context) {
 
         JsonArray array = null;
         if (src != null) {

@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.loanaccount.data;
 
 import java.math.BigDecimal;
@@ -26,7 +31,7 @@ public class LoanChargeData {
     private final EnumOptionData chargeTimeType;
 
     @SuppressWarnings("unused")
-    private final LocalDate dueAsOfDate;
+    private final LocalDate dueDate;
 
     @SuppressWarnings("unused")
     private final EnumOptionData chargeCalculationType;
@@ -62,7 +67,7 @@ public class LoanChargeData {
     private final boolean penalty;
 
     public static LoanChargeData template(final Collection<ChargeData> chargeOptions) {
-        return new LoanChargeData(null, null, null, null, null, null, null, chargeOptions, false);
+        return new LoanChargeData(null, null, null, null, null, null, null, null, chargeOptions, false);
     }
 
     /**
@@ -70,13 +75,14 @@ public class LoanChargeData {
      * charges)
      */
     public static LoanChargeData newLoanChargeDetails(final Long chargeId, final String name, final CurrencyData currency,
-            final BigDecimal value, final EnumOptionData chargeTimeType, final EnumOptionData chargeCalculationType, final boolean penalty) {
-        return new LoanChargeData(null, chargeId, name, currency, value, chargeTimeType, chargeCalculationType, null, penalty);
+            final BigDecimal amount, final BigDecimal percentage, final EnumOptionData chargeTimeType,
+            final EnumOptionData chargeCalculationType, final boolean penalty) {
+        return new LoanChargeData(null, chargeId, name, currency, amount, percentage, chargeTimeType, chargeCalculationType, null, penalty);
     }
 
     public LoanChargeData(final Long id, final Long chargeId, final String name, final CurrencyData currency, final BigDecimal amount,
             final BigDecimal amountPaid, final BigDecimal amountWaived, final BigDecimal amountWrittenOff,
-            final BigDecimal amountOutstanding, final EnumOptionData chargeTimeType, final LocalDate dueAsOfDate,
+            final BigDecimal amountOutstanding, final EnumOptionData chargeTimeType, final LocalDate dueDate,
             final EnumOptionData chargeCalculationType, final BigDecimal percentage, final BigDecimal amountPercentageAppliedTo,
             final boolean penalty) {
         this.id = id;
@@ -89,7 +95,7 @@ public class LoanChargeData {
         this.amountWrittenOff = amountWrittenOff;
         this.amountOutstanding = amountOutstanding;
         this.chargeTimeType = chargeTimeType;
-        this.dueAsOfDate = dueAsOfDate;
+        this.dueDate = dueDate;
         this.chargeCalculationType = chargeCalculationType;
         this.percentage = percentage;
         this.amountPercentageAppliedTo = amountPercentageAppliedTo;
@@ -105,8 +111,8 @@ public class LoanChargeData {
     }
 
     private LoanChargeData(final Long id, final Long chargeId, final String name, final CurrencyData currency, final BigDecimal amount,
-            final EnumOptionData chargeTimeType, final EnumOptionData chargeCalculationType, final Collection<ChargeData> chargeOptions,
-            final boolean penalty) {
+            final BigDecimal pecentage, final EnumOptionData chargeTimeType, final EnumOptionData chargeCalculationType,
+            final Collection<ChargeData> chargeOptions, final boolean penalty) {
         this.id = id;
         this.chargeId = chargeId;
         this.name = name;
@@ -117,9 +123,9 @@ public class LoanChargeData {
         this.amountWrittenOff = BigDecimal.ZERO;
         this.amountOutstanding = amount;
         this.chargeTimeType = chargeTimeType;
-        this.dueAsOfDate = null;
+        this.dueDate = null;
         this.chargeCalculationType = chargeCalculationType;
-        this.percentage = null;
+        this.percentage = pecentage;
         this.amountPercentageAppliedTo = null;
         this.penalty = penalty;
 

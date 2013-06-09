@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.commands.domain;
 
 public class CommandWrapper {
@@ -8,56 +13,71 @@ public class CommandWrapper {
     private final Long groupId;
     private final Long clientId;
     private final Long loanId;
+    private final Long savingsId;
     private final String actionName;
     private final String entityName;
     private final String taskPermissionName;
     private final Long entityId;
+    private final Long subentityId;
     private final String href;
     private final String json;
-    private final Long apptableId;
-    private final Long datatableId;
+    private final Long codeId;
+    private final String transactionId;
+    private final String supportedEntityType;
+    private final Long supportedEntityId;
 
-    public static CommandWrapper wrap(final String actionName, final String enityName, final Long resourceId) {
-        return new CommandWrapper(null, actionName, enityName, resourceId);
+    public static CommandWrapper wrap(final String actionName, final String entityName, final Long resourceId, final Long subresourceId) {
+        return new CommandWrapper(null, actionName, entityName, resourceId, subresourceId, null);
     }
 
-    public static CommandWrapper fromExistingCommand(final Long commandId, final String actionName, final String enityName,
-            final Long resourceId) {
-        return new CommandWrapper(commandId, actionName, enityName, resourceId);
+    public static CommandWrapper fromExistingCommand(final Long commandId, final String actionName, final String entityName,
+            final Long resourceId, final Long subresourceId, final String resourceGetUrl) {
+        return new CommandWrapper(commandId, actionName, entityName, resourceId, subresourceId, resourceGetUrl);
     }
 
-    private CommandWrapper(final Long commandId, final String actionName, final String enityName, final Long resourceId) {
+    private CommandWrapper(final Long commandId, final String actionName, final String entityName, final Long resourceId,
+            final Long subresourceId, final String resourceGetUrl) {
         this.commandId = commandId;
         this.officeId = null;
         this.groupId = null;
         this.clientId = null;
         this.loanId = null;
+        this.savingsId = null;
         this.actionName = actionName;
-        this.entityName = enityName;
+        this.entityName = entityName;
         this.taskPermissionName = actionName + "_" + entityName;
         this.entityId = resourceId;
-        this.apptableId = null;
-        this.datatableId = null;
-        this.href = null;
+        this.subentityId = subresourceId;
+        this.codeId = null;
+        this.supportedEntityType = null;
+        this.supportedEntityId = null;
+        this.href = resourceGetUrl;
         this.json = null;
+        this.transactionId = null;
+
     }
 
-    public CommandWrapper(final Long officeId, final Long groupId, final Long clientId, final Long loanId, final String actionName,
-            final String entityName, final Long entityId, final Long apptableId, final Long datatableId, final String href,
-            final String json) {
+    public CommandWrapper(final Long officeId, final Long groupId, final Long clientId, final Long loanId, final Long savingsId,
+            final String actionName, final String entityName, final Long entityId, final Long subentityId, final Long codeId,
+            final String supportedEntityType, final Long supportedEntityId, final String href, final String json, final String transactionId) {
         this.commandId = null;
         this.officeId = officeId;
         this.groupId = groupId;
         this.clientId = clientId;
         this.loanId = loanId;
+        this.savingsId = savingsId;
         this.actionName = actionName;
         this.entityName = entityName;
         this.taskPermissionName = actionName + "_" + entityName;
         this.entityId = entityId;
-        this.apptableId = apptableId;
-        this.datatableId = datatableId;
+        this.subentityId = subentityId;
+        this.codeId = codeId;
+        this.supportedEntityType = supportedEntityType;
+        this.supportedEntityId = supportedEntityId;
         this.href = href;
         this.json = json;
+        this.transactionId = transactionId;
+
     }
 
     public Long commandId() {
@@ -76,6 +96,10 @@ public class CommandWrapper {
         return this.entityId;
     }
 
+    public Long subresourceId() {
+        return this.subentityId;
+    }
+
     public String taskPermissionName() {
         return this.actionName + "_" + this.entityName;
     }
@@ -88,6 +112,10 @@ public class CommandWrapper {
         return this.taskPermissionName;
     }
 
+    public Long getCodeId() {
+        return this.codeId;
+    }
+
     public String getHref() {
         return this.href;
     }
@@ -96,12 +124,20 @@ public class CommandWrapper {
         return this.json;
     }
 
+    public String getTransactionId() {
+        return this.transactionId;
+    }
+
     public String getEntityName() {
         return this.entityName;
     }
 
     public Long getEntityId() {
         return this.entityId;
+    }
+
+    public Long getSubentityId() {
+        return this.subentityId;
     }
 
     public Long getGroupId() {
@@ -116,12 +152,16 @@ public class CommandWrapper {
         return this.loanId;
     }
 
-    public Long getApptableId() {
-        return this.apptableId;
+    public Long getSavingsId() {
+        return this.savingsId;
     }
 
-    public Long getDatatableId() {
-        return this.datatableId;
+    public Long getSupportedEntityId() {
+        return this.supportedEntityId;
+    }
+
+    public String getSupportedEntityType() {
+        return this.supportedEntityType;
     }
 
     public boolean isUpdate() {
@@ -130,7 +170,7 @@ public class CommandWrapper {
                 || (isUpdateOperation() && this.entityId != null);
     }
 
-    private boolean isUpdateOperation() {
+    public boolean isUpdateOperation() {
         return this.actionName.equalsIgnoreCase("UPDATE");
     }
 
@@ -144,6 +184,10 @@ public class CommandWrapper {
 
     public boolean isUpdateRolePermissions() {
         return this.actionName.equalsIgnoreCase("PERMISSIONS") && this.entityId != null;
+    }
+
+    public boolean isConfigurationResource() {
+        return this.entityName.equalsIgnoreCase("CONFIGURATION");
     }
 
     public boolean isPermissionResource() {
@@ -166,8 +210,32 @@ public class CommandWrapper {
         return this.entityName.equalsIgnoreCase("CODE");
     }
 
+    public boolean isCodeValueResource() {
+        return this.entityName.equalsIgnoreCase("CODEVALUE");
+    }
+
     public boolean isStaffResource() {
         return this.entityName.equalsIgnoreCase("STAFF");
+    }
+
+    public boolean isGuarantorResource() {
+        return this.entityName.equalsIgnoreCase("GUARANTOR");
+    }
+
+    public boolean isGLAccountResource() {
+        return this.entityName.equalsIgnoreCase("GLACCOUNT");
+    }
+
+    public boolean isGLClosureResource() {
+        return this.entityName.equalsIgnoreCase("GLCLOSURE");
+    }
+
+    public boolean isJournalEntryResource() {
+        return this.entityName.equalsIgnoreCase("JOURNALENTRY");
+    }
+
+    public boolean isRevertJournalEntry() {
+        return this.actionName.equalsIgnoreCase("REVERSE") && this.entityName.equalsIgnoreCase("JOURNALENTRY");
     }
 
     public boolean isFundResource() {
@@ -194,6 +262,18 @@ public class CommandWrapper {
         return this.entityName.equalsIgnoreCase("CLIENT");
     }
 
+    public boolean isClientActivation() {
+        return this.actionName.equalsIgnoreCase("ACTIVATE") && this.entityName.equalsIgnoreCase("CLIENT");
+    }
+
+    public boolean isGroupActivation() {
+        return this.actionName.equalsIgnoreCase("ACTIVATE") && this.entityName.equalsIgnoreCase("GROUP");
+    }
+
+    public boolean isCenterActivation() {
+        return this.actionName.equalsIgnoreCase("ACTIVATE") && this.entityName.equalsIgnoreCase("CENTER");
+    }
+
     public boolean isClientIdentifierResource() {
         return this.entityName.equals("CLIENTIDENTIFIER");
     }
@@ -205,9 +285,13 @@ public class CommandWrapper {
     public boolean isLoanResource() {
         return this.entityName.equalsIgnoreCase("LOAN");
     }
-    
+
     public boolean isLoanChargeResource() {
         return this.entityName.equalsIgnoreCase("LOANCHARGE");
+    }
+
+    public boolean isCollateralResource() {
+        return this.entityName.equalsIgnoreCase("COLLATERAL");
     }
 
     public boolean isApproveLoanApplication() {
@@ -278,31 +362,158 @@ public class CommandWrapper {
         return this.actionName.equalsIgnoreCase("UPDATELOANOFFICER") && this.entityName.equalsIgnoreCase("LOAN");
     }
 
+    public boolean isRemoveLoanOfficer() {
+        return this.actionName.equalsIgnoreCase("REMOVELOANOFFICER") && this.entityName.equalsIgnoreCase("LOAN");
+    }
+
     public boolean isBulkUpdateLoanOfficer() {
         return this.actionName.equalsIgnoreCase("BULKREASSIGN") && this.entityName.equalsIgnoreCase("LOAN");
     }
 
     public boolean isDatatableResource() {
-        return this.apptableId != null;
+        return this.href.startsWith("/datatables/");
     }
 
     public boolean isDeleteOneToOne() {
-        return isDatatableResource() && isDeleteOperation() && this.apptableId != null;
+        /* also covers case of deleting all of a one to many */
+        return isDatatableResource() && isDeleteOperation() && this.subentityId == null;
     }
-    
+
     public boolean isDeleteMultiple() {
-        return isDatatableResource() && isDeleteOperation() && this.apptableId != null && this.datatableId != null;
+        return isDatatableResource() && isDeleteOperation() && this.subentityId != null;
     }
 
     public boolean isUpdateOneToOne() {
-        return isDatatableResource() && isUpdateOperation() && this.apptableId != null;
+        return isDatatableResource() && isUpdateOperation() && this.subentityId == null;
     }
-    
+
     public boolean isUpdateMultiple() {
-        return isDatatableResource() && isUpdateOperation() && this.apptableId != null && this.datatableId != null;
+        return isDatatableResource() && isUpdateOperation() && this.subentityId != null;
+    }
+
+    public boolean isUnassignStaff() {
+        return this.actionName.equalsIgnoreCase("UNASSIGNSTAFF") && this.entityName.equalsIgnoreCase("GROUP");
     }
 
     public String commandName() {
         return this.actionName + "_" + this.entityName;
     }
+
+    public boolean isUpdateOfOwnUserDetails(final Long loggedInUserId) {
+        return this.isUserResource() && isUpdate() && loggedInUserId.equals(this.entityId);
+    }
+
+    public boolean isDepositProductResource() {
+        return this.entityName.equalsIgnoreCase("DEPOSITPRODUCT");
+    }
+
+    public boolean isDepositAccountResource() {
+        return this.entityName.equalsIgnoreCase("DEPOSITACCOUNT");
+    }
+
+    public boolean isApprovalOfDeposit() {
+        return this.actionName.equalsIgnoreCase("APPROVE") && this.entityName.equalsIgnoreCase("DEPOSITACCOUNT");
+    }
+
+    public boolean isWithdrawDepositAmount() {
+        return this.actionName.equalsIgnoreCase("WITHDRAWAL") && this.entityName.equalsIgnoreCase("DEPOSITACCOUNT");
+    }
+
+    public boolean isWithdrawInterest() {
+        return this.actionName.equalsIgnoreCase("INTEREST") && this.entityName.equalsIgnoreCase("DEPOSITACCOUNT");
+    }
+
+    public boolean isRenewOfDepositApplicaion() {
+        return this.actionName.equalsIgnoreCase("RENEW") && this.entityName.equalsIgnoreCase("DEPOSITACCOUNT");
+    }
+
+    public boolean isRejectionOfDepositApplicaion() {
+        return this.actionName.equalsIgnoreCase("REJECT") && this.entityName.equalsIgnoreCase("DEPOSITACCOUNT");
+    }
+
+    public boolean isWithdrawByApplicant() {
+        return this.actionName.equalsIgnoreCase("WITHDRAW") && this.entityName.equalsIgnoreCase("DEPOSITACCOUNT");
+    }
+
+    public boolean isUndoApprovalOfDepositApplication() {
+        return this.actionName.equalsIgnoreCase("APPROVALUNDO") && this.entityName.equalsIgnoreCase("DEPOSITACCOUNT");
+    }
+
+    public boolean isSavingsProductResource() {
+        return this.entityName.equalsIgnoreCase("SAVINGSPRODUCT");
+    }
+
+    public boolean isSavingsAccountResource() {
+        return this.entityName.equalsIgnoreCase("SAVINGSACCOUNT");
+    }
+
+    public boolean isSavingsAccountActivation() {
+        return this.actionName.equalsIgnoreCase("ACTIVATE") && this.entityName.equalsIgnoreCase("SAVINGSACCOUNT");
+    }
+
+    public boolean isSavingsAccountDeposit() {
+        return this.actionName.equalsIgnoreCase("DEPOSIT") && this.entityName.equalsIgnoreCase("SAVINGSACCOUNT");
+    }
+
+    public boolean isSavingsAccountWithdrawal() {
+        return this.actionName.equalsIgnoreCase("WITHDRAWAL") && this.entityName.equalsIgnoreCase("SAVINGSACCOUNT");
+    }
+
+    public boolean isSavingsAccountInterestCalculation() {
+        return this.actionName.equalsIgnoreCase("CALCULATEINTEREST") && this.entityName.equalsIgnoreCase("SAVINGSACCOUNT");
+    }
+
+    public boolean isSavingsAccountInterestPosting() {
+        return this.actionName.equalsIgnoreCase("POSTINTEREST") && this.entityName.equalsIgnoreCase("SAVINGSACCOUNT");
+    }
+
+    public boolean isCalendarResource() {
+        return this.entityName.equalsIgnoreCase("CALENDAR");
+    }
+
+    public boolean isNoteResource() {
+        boolean isnoteResource = false;
+        if (this.entityName.equalsIgnoreCase("CLIENTNOTE") || this.entityName.equalsIgnoreCase("LOANNOTE")
+                || this.entityName.equalsIgnoreCase("LOANTRANSACTIONNOTE") || this.entityName.equalsIgnoreCase("SAVINGNOTE")
+                || this.entityName.equalsIgnoreCase("GROUPNOTE")) {
+            isnoteResource = true;
+        }
+        return isnoteResource;
+    }
+
+    public boolean isGroupResource() {
+        return this.entityName.equalsIgnoreCase("GROUP");
+    }
+    
+    public boolean isSaveGroupCollectionSheet(){
+        return this.entityName.equalsIgnoreCase("GROUP") && this.actionName.equalsIgnoreCase("SAVECOLLECTIONSHEET");
+    }
+
+    public boolean isCollectionSheetResource() {
+        return this.entityName.equals("COLLECTIONSHEET");
+    }
+
+    public boolean isCenterResource() {
+        return this.entityName.equalsIgnoreCase("CENTER");
+    }
+
+    public boolean isSaveCenterCollectionSheet(){
+        return this.entityName.equalsIgnoreCase("CENTER") && this.actionName.equalsIgnoreCase("SAVECOLLECTIONSHEET");
+    }
+    
+    public boolean isReportResource() {
+        return this.entityName.equalsIgnoreCase("REPORT");
+    }
+
+    public boolean isAssociateClients() {
+        return this.actionName.equalsIgnoreCase("ASSOCIATECLIENTS");
+    }
+
+    public boolean isDisassociateClients() {
+        return this.actionName.equalsIgnoreCase("DISASSOCIATECLIENTS");
+    }
+
+	public boolean isAccountingRuleResource() {
+		return this.entityName.equalsIgnoreCase("ACCOUNTINGRULE");
+	}
 }

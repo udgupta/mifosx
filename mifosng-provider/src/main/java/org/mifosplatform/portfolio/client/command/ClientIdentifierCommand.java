@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.client.command;
 
 import java.util.ArrayList;
@@ -45,7 +50,7 @@ public class ClientIdentifierCommand {
         if (!dataValidationErrors.isEmpty()) { throw new PlatformApiDataValidationException("validation.msg.validation.errors.exist",
                 "Validation errors exist.", dataValidationErrors); }
     }
-    
+
     public void validateForUpdate() {
         List<ApiParameterError> dataValidationErrors = new ArrayList<ApiParameterError>();
 
@@ -53,10 +58,10 @@ public class ClientIdentifierCommand {
 
         baseDataValidator.reset().parameter("documentKey").value(this.documentKey).ignoreIfNull().notBlank();
 
-        // FIXME - kw
-//        if (command.isDocumentTypeChanged()) {
-//            baseDataValidator.reset().parameter("documentTypeId").value(command.getDocumentTypeId()).notNull().integerGreaterThanZero();
-//        }
+        // FIXME - KW - add in validation
+        // if (command.isDocumentTypeChanged()) {
+        // baseDataValidator.reset().parameter("documentTypeId").value(command.getDocumentTypeId()).notNull().integerGreaterThanZero();
+        // }
 
         baseDataValidator.reset().anyOfNotNull(this.documentTypeId, this.documentKey);
 

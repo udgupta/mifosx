@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.infrastructure.core.serialization;
 
 import java.util.Set;
@@ -11,27 +16,25 @@ public class ApiRequestJsonSerializationSettings {
     private final boolean prettyPrint;
     private final Set<String> parametersForPartialResponse;
     private final boolean template;
-    private final Long commandId;
     private final boolean makerCheckerable;
     private final boolean includeJson;
 
     public ApiRequestJsonSerializationSettings(final boolean prettyPrint, final Set<String> parametersForPartialResponse,
-            final boolean template, final Long commandId, final boolean makerCheckerable, final boolean includeJson) {
+            final boolean template, final boolean makerCheckerable, final boolean includeJson) {
         this.prettyPrint = prettyPrint;
         this.parametersForPartialResponse = parametersForPartialResponse;
         this.template = template;
-        this.commandId = commandId;
         this.makerCheckerable = makerCheckerable;
         this.includeJson = includeJson;
     }
 
     public static ApiRequestJsonSerializationSettings from(final boolean prettyPrint, final Set<String> parametersForPartialResponse,
-            final boolean template, final Long commandId, final boolean makerCheckerable, final boolean includeJson) {
+            final boolean template, final boolean makerCheckerable, final boolean includeJson) {
 
-        // FIXME - kw - rather than always creating new objects for this could
+        // FIXME - KW - rather than always creating new objects for this could
         // just send by common ones like, prettyprint=false, empty response
         // parameters
-        return new ApiRequestJsonSerializationSettings(prettyPrint, parametersForPartialResponse, template, commandId, makerCheckerable, includeJson);
+        return new ApiRequestJsonSerializationSettings(prettyPrint, parametersForPartialResponse, template, makerCheckerable, includeJson);
     }
 
     public boolean isPrettyPrint() {
@@ -45,13 +48,9 @@ public class ApiRequestJsonSerializationSettings {
     public boolean isMakerCheckerable() {
         return this.makerCheckerable;
     }
-    
+
     public boolean isIncludeJson() {
         return this.includeJson;
-    }
-
-    public Long getCommandId() {
-        return this.commandId;
     }
 
     public Set<String> getParametersForPartialResponse() {
@@ -60,9 +59,5 @@ public class ApiRequestJsonSerializationSettings {
 
     public boolean isPartialResponseRequired() {
         return !this.parametersForPartialResponse.isEmpty();
-    }
-
-    public boolean isCommandIdPassed() {
-        return this.commandId != null;
     }
 }

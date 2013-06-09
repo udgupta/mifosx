@@ -1,128 +1,72 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.infrastructure.dataqueries.service;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
 import javax.sql.DataSource;
-import javax.sql.rowset.CachedRowSet;
 
 import org.joda.time.LocalDate;
-import org.mifosplatform.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.mifosplatform.infrastructure.core.service.TenantAwareRoutingDataSource;
 import org.mifosplatform.infrastructure.dataqueries.data.GenericResultsetData;
-import org.mifosplatform.infrastructure.dataqueries.data.ResultsetColumnHeader;
-import org.mifosplatform.infrastructure.dataqueries.data.ResultsetDataRow;
+import org.mifosplatform.infrastructure.dataqueries.data.ResultsetColumnHeaderData;
+import org.mifosplatform.infrastructure.dataqueries.data.ResultsetColumnValueData;
+import org.mifosplatform.infrastructure.dataqueries.data.ResultsetRowData;
+import org.mifosplatform.infrastructure.dataqueries.exception.DatatableNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.rowset.SqlRowSet;
+import org.springframework.jdbc.support.rowset.SqlRowSetMetaData;
 import org.springframework.stereotype.Service;
 
-import com.sun.rowset.CachedRowSetImpl;
-
-//TODO - Performance Item - most items (code values etc) can be cached but not doing that yet
 @Service
 public class GenericDataServiceImpl implements GenericDataService {
 
+    private final JdbcTemplate jdbcTemplate;
     private final DataSource dataSource;
 
     @Autowired
     public GenericDataServiceImpl(final TenantAwareRoutingDataSource dataSource) {
-
         this.dataSource = dataSource;
-    }
-
-    @Override
-    public CachedRowSet getCachedResultSet(final String sql, final String sqlErrorMsg) {
-        // FIXME - Need to reimplement this away from Sun library - could be
-        // mixture of Lists and jdbcTemplate.query
-
-        // long startTime = System.currentTimeMillis();
-        Connection db_connection = null;
-        Statement db_statement = null;
-        CachedRowSet crs = null;
-        try {
-            db_connection = dataSource.getConnection();
-            db_statement = db_connection.createStatement();
-            ResultSet rs = db_statement.executeQuery(sql);
-            crs = new CachedRowSetImpl();
-
-            crs.populate(rs);
-            // logger.info("RS Size: " + crs.size() +
-            // "     getCachedResultSet sql: " + sql);
-        } catch (SQLException e) {
-            throw new PlatformDataIntegrityException("error.msg.sql.error", e.getMessage(), sqlErrorMsg);
-        } finally {
-            dbClose(db_statement, db_connection);
-
-        }
-
-        // long elapsed = System.currentTimeMillis() - startTime;
-        // logger.info("Elapsed Time: " + elapsed + "    SQL: " + sql);
-        return crs;
-    }
-
-    @Override
-    public void updateSQL(final String sql, final String sqlErrorMsg) {
-
-        // long startTime = System.currentTimeMillis();
-        Connection db_connection = null;
-        Statement db_statement = null;
-        try {
-            db_connection = dataSource.getConnection();
-            db_statement = db_connection.createStatement();
-            db_statement.executeUpdate(sql);
-        } catch (SQLException e) {
-            throw new PlatformDataIntegrityException("error.msg.sql.error", e.getMessage(), sqlErrorMsg);
-        } finally {
-            dbClose(db_statement, db_connection);
-        }
-
-        // long elapsed = System.currentTimeMillis() - startTime;
-        // logger.info("Elapsed Time FOR UPDATE: " + elapsed + "    SQL: " +
-        // sql);
+        this.jdbcTemplate = new JdbcTemplate(this.dataSource);
     }
 
     @Override
     public GenericResultsetData fillGenericResultSet(final String sql) {
 
-        String sqlErrorMsg = "Sql: " + sql;
-        CachedRowSet rs = getCachedResultSet(sql, sqlErrorMsg);
+        final SqlRowSet rs = this.jdbcTemplate.queryForRowSet(sql);
 
-        List<ResultsetColumnHeader> columnHeaders = new ArrayList<ResultsetColumnHeader>();
-        List<ResultsetDataRow> resultsetDataRows = new ArrayList<ResultsetDataRow>();
+        final List<ResultsetColumnHeaderData> columnHeaders = new ArrayList<ResultsetColumnHeaderData>();
+        final List<ResultsetRowData> resultsetDataRows = new ArrayList<ResultsetRowData>();
 
-        try {
+        final SqlRowSetMetaData rsmd = rs.getMetaData();
 
-            ResultSetMetaData rsmd = rs.getMetaData();
-            String columnName = null;
-            String columnValue = null;
-            for (int i = 0; i < rsmd.getColumnCount(); i++) {
-                ResultsetColumnHeader rsch = new ResultsetColumnHeader();
-                rsch.setColumnName(rsmd.getColumnName(i + 1));
-                rsch.setColumnType(rsmd.getColumnTypeName(i + 1));
-                columnHeaders.add(rsch);
-            }
+        for (int i = 0; i < rsmd.getColumnCount(); i++) {
 
-            ResultsetDataRow resultsetDataRow;
-            while (rs.next()) {
-                resultsetDataRow = new ResultsetDataRow();
-                List<String> columnValues = new ArrayList<String>();
-                for (int i = 0; i < rsmd.getColumnCount(); i++) {
-                    columnName = rsmd.getColumnName(i + 1);
-                    columnValue = rs.getString(columnName);
-                    columnValues.add(columnValue);
-                }
-                resultsetDataRow.setRow(columnValues);
-                resultsetDataRows.add(resultsetDataRow);
-            }
+            final String columnName = rsmd.getColumnName(i + 1);
+            final String columnType = rsmd.getColumnTypeName(i + 1);
 
-            return new GenericResultsetData(columnHeaders, resultsetDataRows);
-        } catch (SQLException e) {
-            throw new PlatformDataIntegrityException("error.msg.sql.error", e.getMessage(), sqlErrorMsg);
+            final ResultsetColumnHeaderData columnHeader = ResultsetColumnHeaderData.basic(columnName, columnType);
+            columnHeaders.add(columnHeader);
         }
+
+        while (rs.next()) {
+            final List<String> columnValues = new ArrayList<String>();
+            for (int i = 0; i < rsmd.getColumnCount(); i++) {
+                final String columnName = rsmd.getColumnName(i + 1);
+                final String columnValue = rs.getString(columnName);
+                columnValues.add(columnValue);
+            }
+
+            final ResultsetRowData resultsetDataRow = ResultsetRowData.create(columnValues);
+            resultsetDataRows.add(resultsetDataRow);
+        }
+
+        return new GenericResultsetData(columnHeaders, resultsetDataRows);
     }
 
     @Override
@@ -161,15 +105,16 @@ public class GenericDataServiceImpl implements GenericDataService {
 
         writer.append("[");
 
-        List<ResultsetColumnHeader> columnHeaders = grs.getColumnHeaders();
-        // logger.info("NO. of Columns: " + columnHeaders.size());
+        final List<ResultsetColumnHeaderData> columnHeaders = grs.getColumnHeaders();
 
-        List<ResultsetDataRow> data = grs.getData();
+        List<ResultsetRowData> data = grs.getData();
         List<String> row;
         Integer rSize;
+        String doubleQuote = "\"";
+        String slashDoubleQuote = "\\\"";
         String currColType;
         String currVal;
-        // logger.info("NO. of Rows: " + data.size());
+
         for (int i = 0; i < data.size(); i++) {
             writer.append("\n{");
 
@@ -177,30 +122,43 @@ public class GenericDataServiceImpl implements GenericDataService {
             rSize = row.size();
             for (int j = 0; j < rSize; j++) {
 
-                writer.append('\"' + columnHeaders.get(j).getColumnName() + '\"' + ": ");
+                writer.append(doubleQuote + columnHeaders.get(j).getColumnName() + doubleQuote + ": ");
                 currColType = columnHeaders.get(j).getColumnDisplayType();
+                final String colType = columnHeaders.get(j).getColumnType();
+                if (currColType == null && colType.equalsIgnoreCase("INT")) {
+                    currColType = "INTEGER";
+                }
+                if (currColType == null && colType.equalsIgnoreCase("VARCHAR")) {
+                    currColType = "VARCHAR";
+                }
+                if (currColType == null && colType.equalsIgnoreCase("DATE")) {
+                    currColType = "DATE";
+                }
                 currVal = row.get(j);
-                if (currVal != null) {
-                    if (currColType.equals("DECIMAL") || currColType.equals("INTEGER"))
+                if (currVal != null && currColType != null) {
+                    if (currColType.equals("DECIMAL") || currColType.equals("INTEGER")) {
                         writer.append(currVal);
-                    else {
+                    } else {
                         if (currColType.equals("DATE")) {
                             LocalDate localDate = new LocalDate(currVal);
                             writer.append("[" + localDate.getYear() + ", " + localDate.getMonthOfYear() + ", " + localDate.getDayOfMonth()
                                     + "]");
-                        } else
-                            writer.append('\"' + currVal + '\"');
-                    }
-                } else
-                    writer.append("null");
+                        } else {
 
+                            writer.append(doubleQuote + replace(currVal, doubleQuote, slashDoubleQuote) + doubleQuote);
+                        }
+                    }
+                } else {
+                    writer.append("null");
+                }
                 if (j < (rSize - 1)) writer.append(",\n");
             }
 
-            if (i < (data.size() - 1))
+            if (i < (data.size() - 1)) {
                 writer.append("},");
-            else
+            } else {
                 writer.append("}");
+            }
         }
 
         writer.append("\n]");
@@ -208,30 +166,78 @@ public class GenericDataServiceImpl implements GenericDataService {
 
     }
 
-    private void dbClose(Statement db_statement, Connection db_connection) {
-        // logger.debug("dbClose");
-        try {
-            if (db_statement != null) {
-                db_statement.close();
-                // parameter assignment in this case is ok.
-                db_statement = null;
+    @Override
+    public List<ResultsetColumnHeaderData> fillResultsetColumnHeaders(final String datatable) {
+
+        final SqlRowSet columnDefinitions = getDatatableMetaData(datatable);
+
+        final List<ResultsetColumnHeaderData> columnHeaders = new ArrayList<ResultsetColumnHeaderData>();
+
+        columnDefinitions.beforeFirst();
+        while (columnDefinitions.next()) {
+            final String columnName = columnDefinitions.getString("COLUMN_NAME");
+            final String isNullable = columnDefinitions.getString("IS_NULLABLE");
+            final String isPrimaryKey = columnDefinitions.getString("COLUMN_KEY");
+            final String columnType = columnDefinitions.getString("DATA_TYPE");
+            final Long columnLength = columnDefinitions.getLong("CHARACTER_MAXIMUM_LENGTH");
+
+            boolean columnNullable = "YES".equalsIgnoreCase(isNullable);
+            boolean columnIsPrimaryKey = "PRI".equalsIgnoreCase(isPrimaryKey);
+
+            List<ResultsetColumnValueData> columnValues = new ArrayList<ResultsetColumnValueData>();
+            if ("varchar".equalsIgnoreCase(columnType)) {
+                columnValues = retreiveColumnValues(columnName, "_cv");
+            } else if ("int".equalsIgnoreCase(columnType)) {
+                columnValues = retreiveColumnValues(columnName, "_cd");
             }
-            if (db_connection != null) {
-                db_connection.close();
-                // parameter assignment in this case is ok.
-                db_connection = null;
-            }
-        } catch (SQLException e) {
-            throw new PlatformDataIntegrityException("error.msg.sql.error", e.getMessage(), "Error closing database connection");
+
+            final ResultsetColumnHeaderData rsch = ResultsetColumnHeaderData.detailed(columnName, columnType, columnLength, columnNullable,
+                    columnIsPrimaryKey, columnValues);
+
+            columnHeaders.add(rsch);
         }
+
+        return columnHeaders;
     }
 
-    @Override
-    public String getDatabaseName() {
-        try {
-            return dataSource.getConnection().getCatalog();
-        } catch (SQLException e) {
-            throw new PlatformDataIntegrityException("error.msg.sql.error", e.getMessage(), "Error Accessing Database Name");
+    /*
+     * Candidate for using caching there to get allowed 'column values' from
+     * code/codevalue tables
+     */
+    private List<ResultsetColumnValueData> retreiveColumnValues(final String columnName, final String code_suffix) {
+
+        final List<ResultsetColumnValueData> columnValues = new ArrayList<ResultsetColumnValueData>();
+
+        int codePosition = columnName.indexOf(code_suffix);
+        if (codePosition > 0) {
+            final String codeName = columnName.substring(0, codePosition);
+
+            final String sql = "select v.id, v.code_value from m_code m " + " join m_code_value v on v.code_id = m.id "
+                    + " where m.code_name = '" + codeName + "' order by v.order_position, v.id";
+
+            final SqlRowSet rsValues = this.jdbcTemplate.queryForRowSet(sql);
+
+            rsValues.beforeFirst();
+            while (rsValues.next()) {
+                final Integer id = rsValues.getInt("id");
+                final String codeValue = rsValues.getString("code_value");
+
+                columnValues.add(new ResultsetColumnValueData(id, codeValue));
+            }
         }
+
+        return columnValues;
+    }
+
+    private SqlRowSet getDatatableMetaData(final String datatable) {
+
+        final String sql = "select COLUMN_NAME, IS_NULLABLE, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, COLUMN_KEY"
+                + " from INFORMATION_SCHEMA.COLUMNS " + " where TABLE_SCHEMA = schema() and TABLE_NAME = '" + datatable
+                + "'order by ORDINAL_POSITION";
+
+        final SqlRowSet columnDefinitions = this.jdbcTemplate.queryForRowSet(sql);
+        if (columnDefinitions.next()) { return columnDefinitions; }
+
+        throw new DatatableNotFoundException(datatable);
     }
 }

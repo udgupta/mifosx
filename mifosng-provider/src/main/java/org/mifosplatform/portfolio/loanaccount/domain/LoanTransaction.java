@@ -1,28 +1,33 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.loanaccount.domain;
 
 import java.math.BigDecimal;
 import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
-import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
-import javax.persistence.OneToOne;
 import javax.persistence.Table;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
 
 import org.joda.time.LocalDate;
-import org.mifosplatform.infrastructure.core.data.EnumOptionData;
-import org.mifosplatform.infrastructure.core.domain.AbstractAuditableCustom;
 import org.mifosplatform.organisation.monetary.data.CurrencyData;
 import org.mifosplatform.organisation.monetary.domain.MonetaryCurrency;
 import org.mifosplatform.organisation.monetary.domain.Money;
 import org.mifosplatform.portfolio.loanaccount.data.LoanTransactionData;
+import org.mifosplatform.portfolio.loanaccount.data.LoanTransactionEnumData;
 import org.mifosplatform.portfolio.loanproduct.service.LoanEnumerations;
-import org.mifosplatform.useradministration.domain.AppUser;
-import org.springframework.format.annotation.DateTimeFormat;
+import org.mifosplatform.portfolio.paymentdetail.data.PaymentDetailData;
+import org.mifosplatform.portfolio.paymentdetail.domain.PaymentDetail;
+import org.springframework.data.jpa.domain.AbstractPersistable;
 
 /**
  * All monetary transactions against a loan are modelled through this entity.
@@ -30,37 +35,40 @@ import org.springframework.format.annotation.DateTimeFormat;
  */
 @Entity
 @Table(name = "m_loan_transaction")
-public class LoanTransaction extends AbstractAuditableCustom<AppUser, Long> {
+public final class LoanTransaction extends AbstractPersistable<Long> {
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "loan_id", nullable = false)
     private Loan loan;
 
-    @Column(name = "amount", scale = 6, precision = 19, nullable = false)
-    private BigDecimal amount;
+    @ManyToOne(optional = true)
+    @JoinColumn(name = "payment_detail_id", nullable = true)
+    private PaymentDetail paymentDetail;
 
-    @Column(name = "principal_portion_derived", scale = 6, precision = 19, nullable = true)
-    private BigDecimal principalPortion = BigDecimal.ZERO;
-
-    @Column(name = "interest_portion_derived", scale = 6, precision = 19, nullable = true)
-    private BigDecimal interestPortion = BigDecimal.ZERO;
-
-    @Column(name = "fee_charges_portion_derived", scale = 6, precision = 19, nullable = true)
-    private BigDecimal feeChargesPortion = BigDecimal.ZERO;
-
-    @Column(name = "penalty_charges_portion_derived", scale = 6, precision = 19, nullable = true)
-    private BigDecimal penaltyChargesPortion = BigDecimal.ZERO;
+    @Column(name = "transaction_type_enum", nullable = false)
+    private final Integer typeOf;
 
     @Temporal(TemporalType.DATE)
     @Column(name = "transaction_date", nullable = false)
     private final Date dateOf;
 
-    @Column(name = "transaction_type_enum", nullable = false)
-    private Integer typeOf;
+    @Column(name = "amount", scale = 6, precision = 19, nullable = false)
+    private BigDecimal amount;
 
-    @OneToOne(optional = true, cascade = { CascadeType.PERSIST })
-    @JoinColumn(name = "contra_id")
-    private LoanTransaction contra;
+    @Column(name = "principal_portion_derived", scale = 6, precision = 19, nullable = true)
+    private BigDecimal principalPortion;
+
+    @Column(name = "interest_portion_derived", scale = 6, precision = 19, nullable = true)
+    private BigDecimal interestPortion;
+
+    @Column(name = "fee_charges_portion_derived", scale = 6, precision = 19, nullable = true)
+    private BigDecimal feeChargesPortion;
+
+    @Column(name = "penalty_charges_portion_derived", scale = 6, precision = 19, nullable = true)
+    private BigDecimal penaltyChargesPortion;
+
+    @Column(name = "is_reversed", nullable = false)
+    private boolean reversed;
 
     protected LoanTransaction() {
         this.loan = null;
@@ -68,20 +76,63 @@ public class LoanTransaction extends AbstractAuditableCustom<AppUser, Long> {
         this.typeOf = null;
     }
 
-    public static LoanTransaction disbursement(final Money amount, final LocalDate disbursementDate) {
-        return new LoanTransaction(null, LoanTransactionType.DISBURSEMENT, amount.getAmount(), disbursementDate);
+    public static LoanTransaction disbursement(final Money amount, final PaymentDetail paymentDetail, final LocalDate disbursementDate) {
+        return new LoanTransaction(null, LoanTransactionType.DISBURSEMENT, paymentDetail, amount.getAmount(), disbursementDate);
     }
 
-    public static LoanTransaction repayment(final Money amount, final LocalDate paymentDate) {
-        return new LoanTransaction(null, LoanTransactionType.REPAYMENT, amount.getAmount(), paymentDate);
+    public static LoanTransaction repayment(final Money amount, final PaymentDetail paymentDetail, final LocalDate paymentDate) {
+        return new LoanTransaction(null, LoanTransactionType.REPAYMENT, paymentDetail, amount.getAmount(), paymentDate);
     }
 
-    public static LoanTransaction repaymentAtDisbursement(final Money amount, final LocalDate paymentDate) {
-        return new LoanTransaction(null, LoanTransactionType.REPAYMENT_AT_DISBURSEMENT, amount.getAmount(), paymentDate);
+    public static LoanTransaction repaymentAtDisbursement(final Money amount, final PaymentDetail paymentDetail, final LocalDate paymentDate) {
+        return new LoanTransaction(null, LoanTransactionType.REPAYMENT_AT_DISBURSEMENT, paymentDetail, amount.getAmount(), paymentDate);
     }
 
     public static LoanTransaction waiver(final Loan loan, final Money waived, final LocalDate waiveDate) {
         return new LoanTransaction(loan, LoanTransactionType.WAIVE_INTEREST, waived.getAmount(), waiveDate);
+    }
+
+    public static LoanTransaction applyInterest(final Loan loan, final Money amount, final LocalDate interestAppliedDate) {
+        return new LoanTransaction(loan, LoanTransactionType.APPLY_INTEREST, amount.getAmount(), interestAppliedDate);
+    }
+
+    public static LoanTransaction copyTransactionProperties(LoanTransaction loanTransaction) {
+        return new LoanTransaction(loanTransaction.loan, loanTransaction.typeOf, loanTransaction.dateOf, loanTransaction.amount,
+                loanTransaction.principalPortion, loanTransaction.interestPortion, loanTransaction.feeChargesPortion,
+                loanTransaction.penaltyChargesPortion, loanTransaction.reversed, loanTransaction.paymentDetail);
+    }
+
+    public static LoanTransaction applyLoanCharge(final Loan loan, final Money amount, final LocalDate applyDate, final Money feeCharges,
+            final Money penaltyCharges) {
+        LoanTransaction applyCharge = new LoanTransaction(loan, LoanTransactionType.APPLY_CHARGES, amount.getAmount(), applyDate);
+        applyCharge.updateChargesComponents(feeCharges, penaltyCharges);
+        return applyCharge;
+    }
+
+    public static boolean transactionAmountsMatch(MonetaryCurrency currency, LoanTransaction loanTransaction,
+            LoanTransaction newLoanTransaction) {
+        if (loanTransaction.getAmount(currency).isEqualTo(newLoanTransaction.getAmount(currency))
+                && (loanTransaction.getPrincipalPortion(currency).isEqualTo(newLoanTransaction.getPrincipalPortion(currency)))
+                && (loanTransaction.getInterestPortion(currency).isEqualTo(newLoanTransaction.getInterestPortion(currency)))
+                && (loanTransaction.getFeeChargesPortion(currency).isEqualTo(newLoanTransaction.getFeeChargesPortion(currency)))
+                && (loanTransaction.getPenaltyChargesPortion(currency).isEqualTo(newLoanTransaction.getPenaltyChargesPortion(currency)))) { return true; }
+        return false;
+    }
+
+    private LoanTransaction(Loan loan, Integer typeOf, Date dateOf, BigDecimal amount, BigDecimal principalPortion,
+            BigDecimal interestPortion, BigDecimal feeChargesPortion, BigDecimal penaltyChargesPortion, boolean reversed,
+            PaymentDetail paymentDetail) {
+        super();
+        this.loan = loan;
+        this.typeOf = typeOf;
+        this.dateOf = dateOf;
+        this.amount = amount;
+        this.principalPortion = principalPortion;
+        this.interestPortion = interestPortion;
+        this.feeChargesPortion = feeChargesPortion;
+        this.penaltyChargesPortion = penaltyChargesPortion;
+        this.reversed = reversed;
+        this.paymentDetail = paymentDetail;
     }
 
     public static LoanTransaction waiveLoanCharge(final Loan loan, final Money waived, final LocalDate waiveDate,
@@ -92,19 +143,8 @@ public class LoanTransaction extends AbstractAuditableCustom<AppUser, Long> {
         return waiver;
     }
 
-    private static LoanTransaction contra(final LoanTransaction originalTransaction) {
-        LoanTransaction contra = new LoanTransaction(null, LoanTransactionType.CONTRA, originalTransaction.getAmount().negate(),
-                new LocalDate(originalTransaction.getDateOf()));
-        contra.updateContra(originalTransaction);
-        return contra;
-    }
-
     public static LoanTransaction writeoff(final Loan loan, final LocalDate writeOffDate) {
         return new LoanTransaction(loan, LoanTransactionType.WRITEOFF, null, writeOffDate);
-    }
-
-    public void updateContra(final LoanTransaction transaction) {
-        this.contra = transaction;
     }
 
     private LoanTransaction(final Loan loan, final LoanTransactionType type, final BigDecimal amount, final LocalDate date) {
@@ -114,94 +154,28 @@ public class LoanTransaction extends AbstractAuditableCustom<AppUser, Long> {
         this.dateOf = date.toDateMidnight().toDate();
     }
 
-    public BigDecimal getAmount() {
-        return this.amount;
+    private LoanTransaction(final Loan loan, final LoanTransactionType type, final PaymentDetail paymentDetail, final BigDecimal amount,
+            final LocalDate date) {
+        this.loan = loan;
+        this.typeOf = type.getValue();
+        this.paymentDetail = paymentDetail;
+        this.amount = amount;
+        this.dateOf = date.toDateMidnight().toDate();
     }
 
-    public Money getAmount(MonetaryCurrency currency) {
-        return Money.of(currency, this.amount);
+    public void reverse() {
+        this.reversed = true;
     }
 
-    @DateTimeFormat(style = "-M")
-    public LocalDate getTransactionDate() {
-        return new LocalDate(this.dateOf);
-    }
-
-    public Date getDateOf() {
-        return dateOf;
-    }
-
-    public LoanTransactionType getTypeOf() {
-        return LoanTransactionType.fromInt(this.typeOf);
-    }
-
-    public boolean isRepayment() {
-        return LoanTransactionType.REPAYMENT.equals(getTypeOf()) && isNotContra();
-    }
-
-    public boolean isNotRepayment() {
-        return !isRepayment();
-    }
-
-    public boolean isNotContra() {
-        return this.contra == null;
-    }
-
-    public boolean isDisbursement() {
-        return LoanTransactionType.DISBURSEMENT.equals(getTypeOf());
-    }
-
-    public boolean isRepaymentAtDisbursement() {
-        return LoanTransactionType.REPAYMENT_AT_DISBURSEMENT.equals(getTypeOf());
-    }
-
-    public boolean isInterestWaiver() {
-        return LoanTransactionType.WAIVE_INTEREST.equals(getTypeOf()) && isNotContra();
-    }
-
-    public boolean isChargesWaiver() {
-        return LoanTransactionType.WAIVE_CHARGES.equals(getTypeOf()) && isNotContra();
-    }
-
-    public boolean isNotInterestWaiver() {
-        return !isInterestWaiver();
-    }
-
-    public boolean isWaiver() {
-        return isInterestWaiver() || isChargesWaiver();
-    }
-
-    public boolean isNotWaiver() {
-        return !isInterestWaiver() && !isChargesWaiver();
-    }
-
-    public boolean isWriteOff() {
-        return getTypeOf().isWriteOff() && isNotContra();
-    }
-
-    public boolean isIdentifiedBy(final Long identifier) {
-        return this.getId().equals(identifier);
-    }
-
-    public boolean isBelongingToLoanOf(final Loan check) {
-        return this.loan.getId().equals(check.getId());
-    }
-
-    public boolean isNotBelongingToLoanOf(final Loan check) {
-        return !isBelongingToLoanOf(check);
-    }
-
-    public void contra() {
-        this.contra = LoanTransaction.contra(this);
-        contra.updateLoan(this.loan);
+    public void resetDerivedComponents() {
+        this.principalPortion = null;
+        this.interestPortion = null;
+        this.feeChargesPortion = null;
+        this.penaltyChargesPortion = null;
     }
 
     public void updateLoan(final Loan loan) {
         this.loan = loan;
-    }
-
-    public boolean isNonZero() {
-        return this.amount.subtract(BigDecimal.ZERO).doubleValue() > 0;
     }
 
     /**
@@ -236,6 +210,10 @@ public class LoanTransaction extends AbstractAuditableCustom<AppUser, Long> {
         return Money.of(currency, this.principalPortion);
     }
 
+    public BigDecimal getPrincipalPortion() {
+        return this.principalPortion;
+    }
+
     public Money getInterestPortion(final MonetaryCurrency currency) {
         return Money.of(currency, this.interestPortion);
     }
@@ -248,11 +226,88 @@ public class LoanTransaction extends AbstractAuditableCustom<AppUser, Long> {
         return Money.of(currency, this.penaltyChargesPortion);
     }
 
-    public void resetDerivedComponents() {
-        this.principalPortion = null;
-        this.interestPortion = null;
-        this.feeChargesPortion = null;
-        this.penaltyChargesPortion = null;
+    public Money getAmount(final MonetaryCurrency currency) {
+        return Money.of(currency, this.amount);
+    }
+
+    public LocalDate getTransactionDate() {
+        return new LocalDate(this.dateOf);
+    }
+
+    public Date getDateOf() {
+        return dateOf;
+    }
+
+    public LoanTransactionType getTypeOf() {
+        return LoanTransactionType.fromInt(this.typeOf);
+    }
+
+    public boolean isReversed() {
+        return this.reversed;
+    }
+
+    public boolean isNotReversed() {
+        return !isReversed();
+    }
+
+    public boolean isRepayment() {
+        return LoanTransactionType.REPAYMENT.equals(getTypeOf()) && isNotReversed();
+    }
+
+    public boolean isNotRepayment() {
+        return !isRepayment();
+    }
+
+    public boolean isDisbursement() {
+        return LoanTransactionType.DISBURSEMENT.equals(getTypeOf()) && isNotReversed();
+    }
+
+    public boolean isRepaymentAtDisbursement() {
+        return LoanTransactionType.REPAYMENT_AT_DISBURSEMENT.equals(getTypeOf()) && isNotReversed();
+    }
+
+    public boolean isRecoveryRepayment() {
+        return LoanTransactionType.RECOVERY_REPAYMENT.equals(getTypeOf()) && isNotReversed();
+    }
+
+    public boolean isInterestWaiver() {
+        return LoanTransactionType.WAIVE_INTEREST.equals(getTypeOf()) && isNotReversed();
+    }
+
+    public boolean isChargesWaiver() {
+        return LoanTransactionType.WAIVE_CHARGES.equals(getTypeOf()) && isNotReversed();
+    }
+
+    public boolean isNotInterestWaiver() {
+        return !isInterestWaiver();
+    }
+
+    public boolean isWaiver() {
+        return isInterestWaiver() || isChargesWaiver();
+    }
+
+    public boolean isNotWaiver() {
+        return !isInterestWaiver() && !isChargesWaiver();
+    }
+
+    public boolean isWriteOff() {
+        return getTypeOf().isWriteOff() && isNotReversed();
+    }
+
+    public boolean isIdentifiedBy(final Long identifier) {
+        return this.getId().equals(identifier);
+    }
+
+    public boolean isBelongingToLoanOf(final Loan check) {
+        return this.loan.getId().equals(check.getId());
+    }
+
+    public boolean isNotBelongingToLoanOf(final Loan check) {
+        return !isBelongingToLoanOf(check);
+    }
+
+    public boolean isNonZero() {
+        return this.amount.subtract(BigDecimal.ZERO).doubleValue() > 0;
     }
 
     public boolean isGreaterThan(final Money monetaryAmount) {
@@ -276,8 +331,40 @@ public class LoanTransaction extends AbstractAuditableCustom<AppUser, Long> {
     }
 
     public LoanTransactionData toData(final CurrencyData currencyData) {
-        final EnumOptionData transactionType = LoanEnumerations.transactionType(this.typeOf);
-        return new LoanTransactionData(this.getId(), transactionType, currencyData, getTransactionDate(), this.amount,
+        final LoanTransactionEnumData transactionType = LoanEnumerations.transactionType(this.typeOf);
+        PaymentDetailData paymentDetailData = null;
+        if (this.paymentDetail != null) {
+            paymentDetailData = paymentDetail.toData();
+        }
+        return new LoanTransactionData(this.getId(), transactionType, paymentDetailData, currencyData, getTransactionDate(), this.amount,
                 this.principalPortion, this.interestPortion, this.feeChargesPortion, this.penaltyChargesPortion);
     }
+
+    public Map<String, Object> toMapData(final CurrencyData currencyData) {
+        final Map<String, Object> thisTransactionData = new LinkedHashMap<String, Object>();
+
+        final LoanTransactionEnumData transactionType = LoanEnumerations.transactionType(this.typeOf);
+
+        thisTransactionData.put("id", this.getId());
+        thisTransactionData.put("type", transactionType);
+        thisTransactionData.put("reversed", Boolean.valueOf(this.isReversed()));
+        thisTransactionData.put("date", this.getTransactionDate());
+        thisTransactionData.put("currency", currencyData);
+        thisTransactionData.put("amount", this.amount);
+        thisTransactionData.put("principalPortion", this.principalPortion);
+        thisTransactionData.put("interestPortion", this.interestPortion);
+        thisTransactionData.put("feeChargesPortion", this.feeChargesPortion);
+        thisTransactionData.put("penaltyChargesPortion", this.penaltyChargesPortion);
+
+        if (this.paymentDetail != null) {
+            thisTransactionData.put("paymentTypeId", this.paymentDetail.getPaymentType().getId());
+        }
+
+        return thisTransactionData;
+    }
+
+    public Loan getLoan() {
+        return this.loan;
+    }
+
 }

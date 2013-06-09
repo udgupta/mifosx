@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.useradministration.domain;
 
 import java.util.Collection;
@@ -13,16 +18,17 @@ import javax.persistence.JoinColumn;
 import javax.persistence.JoinTable;
 import javax.persistence.ManyToMany;
 import javax.persistence.Table;
+import javax.persistence.UniqueConstraint;
 
 import org.mifosplatform.infrastructure.core.api.JsonCommand;
-import org.mifosplatform.infrastructure.core.domain.AbstractAuditableCustom;
 import org.mifosplatform.useradministration.data.RoleData;
+import org.springframework.data.jpa.domain.AbstractPersistable;
 
 @Entity
-@Table(name = "m_role")
-public class Role extends AbstractAuditableCustom<AppUser, Long> {
+@Table(name = "m_role",  uniqueConstraints = { @UniqueConstraint(columnNames = { "name" }, name = "unq_name")})
+public class Role extends AbstractPersistable<Long> {
 
-    @Column(name = "name", nullable = false, length = 100)
+    @Column(name = "name", unique = true, nullable = false, length = 100)
     private String name;
 
     @Column(name = "description", nullable = false, length = 500)
@@ -30,7 +36,7 @@ public class Role extends AbstractAuditableCustom<AppUser, Long> {
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "m_role_permission", joinColumns = @JoinColumn(name = "role_id"), inverseJoinColumns = @JoinColumn(name = "permission_id"))
-    private Set<Permission> permissions = new HashSet<Permission>();
+    private final Set<Permission> permissions = new HashSet<Permission>();
 
     public static Role fromJson(final JsonCommand command) {
         final String name = command.stringValueOfParameterNamed("name");
@@ -103,6 +109,6 @@ public class Role extends AbstractAuditableCustom<AppUser, Long> {
     }
 
     public RoleData toData() {
-        return new RoleData(this.getId(), this.name, this.description, null);
+        return new RoleData(this.getId(), this.name, this.description);
     }
 }

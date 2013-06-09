@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.fund.service;
 
 import java.sql.ResultSet;
@@ -39,7 +44,7 @@ public class FundReadPlatformServiceImpl implements FundReadPlatformService {
             final String name = rs.getString("name");
             final String externalId = rs.getString("externalId");
 
-            return new FundData(id, name, externalId);
+            return FundData.instance(id, name, externalId);
         }
     }
 

@@ -1,7 +1,13 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.infrastructure.security.api;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Set;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
@@ -12,7 +18,9 @@ import javax.ws.rs.core.MediaType;
 
 import org.mifosplatform.infrastructure.core.serialization.ToApiJsonSerializer;
 import org.mifosplatform.infrastructure.security.data.AuthenticatedUserData;
+import org.mifosplatform.useradministration.data.RoleData;
 import org.mifosplatform.useradministration.domain.AppUser;
+import org.mifosplatform.useradministration.domain.Role;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Scope;
@@ -59,7 +67,13 @@ public class AuthenticationApiResource {
             AppUser principal = (AppUser) authenticationCheck.getPrincipal();
             byte[] base64EncodedAuthenticationKey = Base64.encode(username + ":" + password);
 
-            authenticatedUserData = new AuthenticatedUserData(username, permissions, principal.getId(), new String(
+            Collection<RoleData> roles = new ArrayList<RoleData>();
+            Set<Role> userRoles = principal.getRoles();
+            for (Role role : userRoles) {
+                roles.add(role.toData());
+            }
+
+            authenticatedUserData = new AuthenticatedUserData(username, roles, permissions, principal.getId(), new String(
                     base64EncodedAuthenticationKey));
         }
 

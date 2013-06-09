@@ -1,14 +1,19 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.useradministration.service;
 
 import java.util.Collection;
 
-import org.mifosplatform.useradministration.data.PermissionUsageData;
+import org.mifosplatform.useradministration.data.PermissionData;
 
 public interface PermissionReadPlatformService {
 
-    Collection<PermissionUsageData> retrieveAllPermissions();
+    Collection<PermissionData> retrieveAllPermissions();
     
-    Collection<PermissionUsageData> retrieveAllMakerCheckerablePermissions();
+    Collection<PermissionData> retrieveAllMakerCheckerablePermissions();
 
-    Collection<PermissionUsageData> retrieveAllRolePermissions(Long roleId);
+    Collection<PermissionData> retrieveAllRolePermissions(Long roleId);
 }

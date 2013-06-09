@@ -1,10 +1,13 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.useradministration.handler;
 
 import org.mifosplatform.commands.handler.NewCommandSourceHandler;
 import org.mifosplatform.infrastructure.core.api.JsonCommand;
 import org.mifosplatform.infrastructure.core.data.CommandProcessingResult;
-import org.mifosplatform.infrastructure.security.service.PlatformSecurityContext;
-import org.mifosplatform.useradministration.domain.AppUser;
 import org.mifosplatform.useradministration.service.AppUserWritePlatformService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -14,11 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class UpdateUserCommandHandler implements NewCommandSourceHandler {
 
     private final AppUserWritePlatformService writePlatformService;
-    private final PlatformSecurityContext context;
 
     @Autowired
-    public UpdateUserCommandHandler(final PlatformSecurityContext context, final AppUserWritePlatformService writePlatformService) {
-        this.context = context;
+    public UpdateUserCommandHandler(final AppUserWritePlatformService writePlatformService) {
         this.writePlatformService = writePlatformService;
     }
 
@@ -26,16 +27,7 @@ public class UpdateUserCommandHandler implements NewCommandSourceHandler {
     @Override
     public CommandProcessingResult processCommand(final JsonCommand command) {
 
-        final AppUser loggedInUser = context.authenticatedUser();
-
         final Long userId = command.entityId();
-        CommandProcessingResult result = null;
-        if (loggedInUser.hasIdOf(userId)) {
-            result = this.writePlatformService.updateUsersOwnAccountDetails(userId, command);
-        } else {
-            result = this.writePlatformService.updateUser(userId, command);
-        }
-
-        return result;
+        return this.writePlatformService.updateUser(userId, command);
     }
 }

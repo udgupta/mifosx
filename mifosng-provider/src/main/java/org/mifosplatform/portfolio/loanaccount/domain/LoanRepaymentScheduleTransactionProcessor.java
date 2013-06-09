@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.loanaccount.domain;
 
 import java.util.List;
@@ -11,7 +16,7 @@ public interface LoanRepaymentScheduleTransactionProcessor {
     void handleTransaction(LoanTransaction loanTransaction, MonetaryCurrency currency, List<LoanRepaymentScheduleInstallment> installments,
             Set<LoanCharge> charges);
 
-    void handleTransaction(LocalDate disbursementDate, List<LoanTransaction> repaymentsOrWaivers, MonetaryCurrency currency,
+    ChangedTransactionDetail handleTransaction(LocalDate disbursementDate, List<LoanTransaction> repaymentsOrWaivers, MonetaryCurrency currency,
             List<LoanRepaymentScheduleInstallment> repaymentScheduleInstallments, Set<LoanCharge> charges);
 
     void handleWriteOff(LoanTransaction loanTransaction, MonetaryCurrency loanCurrency,

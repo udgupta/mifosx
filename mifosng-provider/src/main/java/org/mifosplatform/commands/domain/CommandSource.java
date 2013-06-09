@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.commands.domain;
 
 import java.util.Date;
@@ -22,10 +27,10 @@ public class CommandSource extends AbstractPersistable<Long> {
 
     @Column(name = "action_name", nullable = true, length = 100)
     private String actionName;
-    
+
     @Column(name = "entity_name", nullable = true, length = 100)
     private String entityName;
-    
+
     @SuppressWarnings("unused")
     @Column(name = "office_id")
     private Long officeId;
@@ -33,21 +38,27 @@ public class CommandSource extends AbstractPersistable<Long> {
     @SuppressWarnings("unused")
     @Column(name = "group_id")
     private Long groupId;
-    
+
     @SuppressWarnings("unused")
     @Column(name = "client_id")
     private Long clientId;
-    
+
     @SuppressWarnings("unused")
     @Column(name = "loan_id")
     private Long loanId;
-    
+
     @SuppressWarnings("unused")
+    @Column(name = "savings_account_id")
+    private Long savingsId;
+
     @Column(name = "api_get_url", length = 100)
     private String resourceGetUrl;
 
     @Column(name = "resource_id")
     private Long resourceId;
+
+    @Column(name = "subresource_id")
+    private Long subresourceId;
 
     @Column(name = "command_as_json", length = 1000)
     private String commandAsJson;
@@ -68,31 +79,29 @@ public class CommandSource extends AbstractPersistable<Long> {
     private AppUser checker;
 
     @SuppressWarnings("unused")
-    @Column(name = "checked_on_date", nullable = false)
+    @Column(name = "checked_on_date", nullable = true)
     @Temporal(TemporalType.TIMESTAMP)
     private Date checkedOnDate;
 
-    @SuppressWarnings("unused")
     @Column(name = "processing_result_enum", nullable = false)
     private Integer processingResult;
 
     public static CommandSource fullEntryFrom(final CommandWrapper wrapper, final JsonCommand command, final AppUser maker) {
-        return new CommandSource(wrapper.actionName(), wrapper.entityName(), wrapper.getHref(), command.entityId(), command.json(), maker, DateTime.now());
+        return new CommandSource(wrapper.actionName(), wrapper.entityName(), wrapper.getHref(), command.entityId(), command.subentityId(),
+                command.json(), maker, DateTime.now());
     }
 
     protected CommandSource() {
         //
     }
 
-    private CommandSource(
-            final String actionName, final String entityName, final String href,
-            final Long resourceId,
-            final String commandSerializedAsJson, final AppUser maker,
-            final DateTime madeOnDateTime) {
+    private CommandSource(final String actionName, final String entityName, final String href, final Long resourceId,
+            final Long subresourceId, final String commandSerializedAsJson, final AppUser maker, final DateTime madeOnDateTime) {
         this.actionName = actionName;
         this.entityName = entityName;
         this.resourceGetUrl = href;
         this.resourceId = resourceId;
+        this.subresourceId = subresourceId;
         this.commandAsJson = commandSerializedAsJson;
         this.maker = maker;
         this.madeOnDate = madeOnDateTime.toDate();
@@ -109,12 +118,20 @@ public class CommandSource extends AbstractPersistable<Long> {
         this.resourceId = resourceId;
     }
 
+    public void updateSubresourceId(final Long subresourceId) {
+        this.subresourceId = subresourceId;
+    }
+
     public void updateJsonTo(final String json) {
         this.commandAsJson = json;
     }
 
     public Long resourceId() {
         return this.resourceId;
+    }
+
+    public Long subresourceId() {
+        return this.subresourceId;
     }
 
     public boolean hasJson() {
@@ -128,7 +145,7 @@ public class CommandSource extends AbstractPersistable<Long> {
     public String getActionName() {
         return this.actionName;
     }
-    
+
     public String getEntityName() {
         return this.entityName;
     }
@@ -141,14 +158,29 @@ public class CommandSource extends AbstractPersistable<Long> {
         return this.resourceId;
     }
 
+    public Long getSubresourceId() {
+        return this.subresourceId;
+    }
+
     public void markAsAwaitingApproval() {
         this.processingResult = CommandProcessingResultType.AWAITING_APPROVAL.getValue();
     }
 
-    public void updateForAudit(final Long officeId, final Long groupId, final Long clientId, final Long loanId) {
+    public boolean isMarkedAsAwaitingApproval() {
+        if (this.processingResult.equals(CommandProcessingResultType.AWAITING_APPROVAL.getValue())) return true;
+
+        return false;
+    }
+
+    public void updateForAudit(final Long officeId, final Long groupId, final Long clientId, final Long loanId, final Long savingsId) {
         this.officeId = officeId;
         this.groupId = groupId;
         this.clientId = clientId;
         this.loanId = loanId;
+        this.savingsId = savingsId;
+    }
+
+    public String getResourceGetUrl() {
+        return this.resourceGetUrl;
     }
 }

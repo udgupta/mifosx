@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.charge.service;
 
 import java.util.Map;
@@ -7,7 +12,6 @@ import org.mifosplatform.infrastructure.core.data.CommandProcessingResult;
 import org.mifosplatform.infrastructure.core.data.CommandProcessingResultBuilder;
 import org.mifosplatform.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.mifosplatform.infrastructure.security.service.PlatformSecurityContext;
-import org.mifosplatform.portfolio.charge.command.ChargeDefinitionCommand;
 import org.mifosplatform.portfolio.charge.domain.Charge;
 import org.mifosplatform.portfolio.charge.domain.ChargeRepository;
 import org.mifosplatform.portfolio.charge.exception.ChargeNotFoundException;
@@ -42,8 +46,7 @@ public class ChargeWritePlatformServiceJpaRepositoryImpl implements ChargeWriteP
         try {
             this.context.authenticatedUser();
 
-            final ChargeDefinitionCommand chargeDefinitionCommand = this.fromApiJsonDeserializer.commandFromApiJson(command.json());
-            chargeDefinitionCommand.validateForCreate();
+            this.fromApiJsonDeserializer.validateForCreate(command.json());
 
             final Charge charge = Charge.fromJson(command);
             this.chargeRepository.save(charge);
@@ -62,8 +65,7 @@ public class ChargeWritePlatformServiceJpaRepositoryImpl implements ChargeWriteP
         try {
             this.context.authenticatedUser();
 
-            final ChargeDefinitionCommand chargeDefinitionCommand = this.fromApiJsonDeserializer.commandFromApiJson(command.json());
-            chargeDefinitionCommand.validateForUpdate();
+            this.fromApiJsonDeserializer.validateForUpdate(command.json());
 
             final Charge chargeForUpdate = this.chargeRepository.findOne(chargeId);
             if (chargeForUpdate == null) { throw new ChargeNotFoundException(chargeId); }

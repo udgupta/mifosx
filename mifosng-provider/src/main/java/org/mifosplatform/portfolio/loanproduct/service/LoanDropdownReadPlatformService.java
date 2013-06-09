@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.loanproduct.service;
 
 import java.util.Collection;
@@ -8,17 +13,18 @@ import org.mifosplatform.portfolio.loanproduct.data.TransactionProcessingStrateg
 
 public interface LoanDropdownReadPlatformService {
 
-	List<EnumOptionData> retrieveLoanAmortizationTypeOptions();
+    List<EnumOptionData> retrieveLoanAmortizationTypeOptions();
 
-	List<EnumOptionData> retrieveLoanInterestTypeOptions();
-	
-	List<EnumOptionData> retrieveLoanInterestRateCalculatedInPeriodOptions();
+    List<EnumOptionData> retrieveLoanInterestTypeOptions();
 
-	List<EnumOptionData> retrieveLoanTermFrequencyTypeOptions();
-	
-	List<EnumOptionData> retrieveRepaymentFrequencyTypeOptions();
+    List<EnumOptionData> retrieveLoanInterestRateCalculatedInPeriodOptions();
 
-	List<EnumOptionData> retrieveInterestRateFrequencyTypeOptions();
+    List<EnumOptionData> retrieveLoanTermFrequencyTypeOptions();
 
-	Collection<TransactionProcessingStrategyData> retreiveTransactionProcessingStrategies();
+    List<EnumOptionData> retrieveRepaymentFrequencyTypeOptions();
+
+    List<EnumOptionData> retrieveInterestRateFrequencyTypeOptions();
+
+    Collection<TransactionProcessingStrategyData> retreiveTransactionProcessingStrategies();
+
 }

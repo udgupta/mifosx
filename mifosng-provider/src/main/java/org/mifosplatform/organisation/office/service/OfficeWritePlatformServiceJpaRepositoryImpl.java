@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.organisation.office.service;
 
 import java.util.Map;
@@ -9,19 +14,16 @@ import org.mifosplatform.infrastructure.core.exception.PlatformDataIntegrityExce
 import org.mifosplatform.infrastructure.security.exception.NoAuthorizationException;
 import org.mifosplatform.infrastructure.security.service.PlatformSecurityContext;
 import org.mifosplatform.organisation.monetary.domain.ApplicationCurrency;
-import org.mifosplatform.organisation.monetary.domain.ApplicationCurrencyRepository;
+import org.mifosplatform.organisation.monetary.domain.ApplicationCurrencyRepositoryWrapper;
 import org.mifosplatform.organisation.monetary.domain.MonetaryCurrency;
 import org.mifosplatform.organisation.monetary.domain.Money;
-import org.mifosplatform.organisation.monetary.exception.CurrencyNotFoundException;
-import org.mifosplatform.organisation.office.command.BranchMoneyTransferCommand;
-import org.mifosplatform.organisation.office.command.OfficeCommand;
 import org.mifosplatform.organisation.office.domain.Office;
 import org.mifosplatform.organisation.office.domain.OfficeRepository;
 import org.mifosplatform.organisation.office.domain.OfficeTransaction;
 import org.mifosplatform.organisation.office.domain.OfficeTransactionRepository;
 import org.mifosplatform.organisation.office.exception.OfficeNotFoundException;
-import org.mifosplatform.organisation.office.serialization.BranchMoneyTransferCommandFromApiJsonDeserializer;
 import org.mifosplatform.organisation.office.serialization.OfficeCommandFromApiJsonDeserializer;
+import org.mifosplatform.organisation.office.serialization.OfficeTransactionCommandFromApiJsonDeserializer;
 import org.mifosplatform.useradministration.domain.AppUser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,22 +39,22 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
 
     private final PlatformSecurityContext context;
     private final OfficeCommandFromApiJsonDeserializer fromApiJsonDeserializer;
-    private final BranchMoneyTransferCommandFromApiJsonDeserializer moneyTransferCommandFromApiJsonDeserializer;
+    private final OfficeTransactionCommandFromApiJsonDeserializer moneyTransferCommandFromApiJsonDeserializer;
     private final OfficeRepository officeRepository;
-    private final OfficeTransactionRepository officeMonetaryTransferRepository;
-    private final ApplicationCurrencyRepository applicationCurrencyRepository;
+    private final OfficeTransactionRepository officeTransactionRepository;
+    private final ApplicationCurrencyRepositoryWrapper applicationCurrencyRepository;
 
     @Autowired
     public OfficeWritePlatformServiceJpaRepositoryImpl(final PlatformSecurityContext context,
             final OfficeCommandFromApiJsonDeserializer fromApiJsonDeserializer,
-            final BranchMoneyTransferCommandFromApiJsonDeserializer moneyTransferCommandFromApiJsonDeserializer,
+            final OfficeTransactionCommandFromApiJsonDeserializer moneyTransferCommandFromApiJsonDeserializer,
             final OfficeRepository officeRepository, final OfficeTransactionRepository officeMonetaryTransferRepository,
-            final ApplicationCurrencyRepository applicationCurrencyRepository) {
+            final ApplicationCurrencyRepositoryWrapper applicationCurrencyRepository) {
         this.context = context;
         this.fromApiJsonDeserializer = fromApiJsonDeserializer;
         this.moneyTransferCommandFromApiJsonDeserializer = moneyTransferCommandFromApiJsonDeserializer;
         this.officeRepository = officeRepository;
-        this.officeMonetaryTransferRepository = officeMonetaryTransferRepository;
+        this.officeTransactionRepository = officeMonetaryTransferRepository;
         this.applicationCurrencyRepository = applicationCurrencyRepository;
     }
 
@@ -63,11 +65,14 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
         try {
             final AppUser currentUser = context.authenticatedUser();
 
-            final OfficeCommand officeCommand = this.fromApiJsonDeserializer.commandFromApiJson(command.json());
-            officeCommand.validateForCreate();
+            this.fromApiJsonDeserializer.validateForCreate(command.json());
 
-            final Office parent = validateUserPriviledgeOnOfficeAndRetrieve(currentUser, officeCommand.getParentId());
+            Long parentId = null;
+            if (command.parameterExists("parentId")) {
+                parentId = command.longValueOfParameterNamed("parentId");
+            }
 
+            final Office parent = validateUserPriviledgeOnOfficeAndRetrieve(currentUser, parentId);
             final Office office = Office.fromJson(parent, command);
 
             // pre save to generate id for use in office hierarchy
@@ -77,8 +82,11 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
 
             this.officeRepository.save(office);
 
-            return new CommandProcessingResultBuilder().withCommandId(command.commandId()).withEntityId(office.getId())
-                    .withOfficeId(office.getId()).build();
+            return new CommandProcessingResultBuilder() //
+                    .withCommandId(command.commandId()) //
+                    .withEntityId(office.getId()) //
+                    .withOfficeId(office.getId()) //
+                    .build();
         } catch (DataIntegrityViolationException dve) {
             handleOfficeDataIntegrityIssues(command, dve);
             return CommandProcessingResult.empty();
@@ -92,15 +100,19 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
         try {
             final AppUser currentUser = context.authenticatedUser();
 
-            final OfficeCommand officeCommand = this.fromApiJsonDeserializer.commandFromApiJson(command.json());
-            officeCommand.validateForUpdate();
+            this.fromApiJsonDeserializer.validateForUpdate(command.json());
+
+            Long parentId = null;
+            if (command.parameterExists("parentId")) {
+                parentId = command.longValueOfParameterNamed("parentId");
+            }
 
             final Office office = validateUserPriviledgeOnOfficeAndRetrieve(currentUser, officeId);
 
             final Map<String, Object> changes = office.update(command);
 
             if (changes.containsKey("parentId")) {
-                final Office parent = validateUserPriviledgeOnOfficeAndRetrieve(currentUser, officeCommand.getParentId());
+                final Office parent = validateUserPriviledgeOnOfficeAndRetrieve(currentUser, parentId);
                 office.update(parent);
             }
 
@@ -108,8 +120,12 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
                 this.officeRepository.saveAndFlush(office);
             }
 
-            return new CommandProcessingResultBuilder().withCommandId(command.commandId()).withEntityId(office.getId())
-                    .withOfficeId(office.getId()).with(changes).build();
+            return new CommandProcessingResultBuilder() //
+                    .withCommandId(command.commandId()) //
+                    .withEntityId(office.getId()) //
+                    .withOfficeId(office.getId()) //
+                    .with(changes) //
+                    .build();
         } catch (DataIntegrityViolationException dve) {
             handleOfficeDataIntegrityIssues(command, dve);
             return CommandProcessingResult.empty();
@@ -118,40 +134,56 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
 
     @Transactional
     @Override
-    public CommandProcessingResult externalBranchMoneyTransfer(final JsonCommand command) {
+    public CommandProcessingResult officeTransaction(final JsonCommand command) {
 
         context.authenticatedUser();
 
-        final BranchMoneyTransferCommand moneyTransferCommand = this.moneyTransferCommandFromApiJsonDeserializer.commandFromApiJson(command
-                .json());
-        moneyTransferCommand.validateBranchTransfer();
+        this.moneyTransferCommandFromApiJsonDeserializer.validateOfficeTransfer(command.json());
 
         Long officeId = null;
         Office fromOffice = null;
-        if (moneyTransferCommand.getFromOfficeId() != null) {
-            fromOffice = this.officeRepository.findOne(moneyTransferCommand.getFromOfficeId());
+        final Long fromOfficeId = command.longValueOfParameterNamed("fromOfficeId");
+        if (fromOfficeId != null) {
+            fromOffice = this.officeRepository.findOne(fromOfficeId);
             officeId = fromOffice.getId();
         }
         Office toOffice = null;
-        if (moneyTransferCommand.getToOfficeId() != null) {
-            toOffice = this.officeRepository.findOne(moneyTransferCommand.getToOfficeId());
+        final Long toOfficeId = command.longValueOfParameterNamed("toOfficeId");
+        if (toOfficeId != null) {
+            toOffice = this.officeRepository.findOne(toOfficeId);
             officeId = toOffice.getId();
         }
 
-        if (fromOffice == null && toOffice == null) { throw new OfficeNotFoundException(moneyTransferCommand.getToOfficeId()); }
+        if (fromOffice == null && toOffice == null) { throw new OfficeNotFoundException(toOfficeId); }
 
-        final String currencyCode = moneyTransferCommand.getCurrencyCode();
-        final ApplicationCurrency appCurrency = this.applicationCurrencyRepository.findOneByCode(currencyCode);
-        if (appCurrency == null) { throw new CurrencyNotFoundException(currencyCode); }
+        final String currencyCode = command.stringValueOfParameterNamed("currencyCode");
+        final ApplicationCurrency appCurrency = this.applicationCurrencyRepository.findOneWithNotFoundDetection(currencyCode);
 
         final MonetaryCurrency currency = new MonetaryCurrency(appCurrency.getCode(), appCurrency.getDecimalPlaces());
-        final Money amount = Money.of(currency, moneyTransferCommand.getTransactionAmount());
+        final Money amount = Money.of(currency, command.bigDecimalValueOfParameterNamed("transactionAmount"));
 
         final OfficeTransaction entity = OfficeTransaction.fromJson(fromOffice, toOffice, amount, command);
 
-        this.officeMonetaryTransferRepository.save(entity);
+        this.officeTransactionRepository.save(entity);
 
-        return new CommandProcessingResultBuilder().withCommandId(command.commandId()).withEntityId(entity.getId()).withOfficeId(officeId)
+        return new CommandProcessingResultBuilder() //
+                .withCommandId(command.commandId()) //
+                .withEntityId(entity.getId()) //
+                .withOfficeId(officeId) //
+                .build();
+    }
+
+    @Transactional
+    @Override
+    public CommandProcessingResult deleteOfficeTransaction(final Long transactionId, final JsonCommand command) {
+
+        context.authenticatedUser();
+
+        this.officeTransactionRepository.delete(transactionId);
+
+        return new CommandProcessingResultBuilder() //
+                .withCommandId(command.commandId()) //
+                .withEntityId(transactionId) //
                 .build();
     }
 
@@ -159,7 +191,7 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
      * Guaranteed to throw an exception no matter what the data integrity issue
      * is.
      */
-    private void handleOfficeDataIntegrityIssues(final JsonCommand command, DataIntegrityViolationException dve) {
+    private void handleOfficeDataIntegrityIssues(final JsonCommand command, final DataIntegrityViolationException dve) {
 
         Throwable realCause = dve.getMostSpecificCause();
         if (realCause.getMessage().contains("externalid_org")) {

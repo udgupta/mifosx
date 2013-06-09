@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.infrastructure.core.domain;
 
 public class MifosPlatformTenant {
@@ -9,9 +14,12 @@ public class MifosPlatformTenant {
     private final String schemaServerPort;
     private final String schemaUsername;
     private final String schemaPassword;
+    private final String timezoneId;
+    private final boolean autoUpdateEnabled;
 
     public MifosPlatformTenant(final Long id, final String name, final String schemaName, final String schemaServer,
-            final String schemaServerPort, final String schemaUsername, final String schemaPassword) {
+            final String schemaServerPort, final String schemaUsername, final String schemaPassword, String timezoneId,
+            final boolean autoUpdateEnabled) {
         this.id = id;
         this.name = name;
         this.schemaName = schemaName;
@@ -19,6 +27,15 @@ public class MifosPlatformTenant {
         this.schemaServerPort = schemaServerPort;
         this.schemaUsername = schemaUsername;
         this.schemaPassword = schemaPassword;
+        this.timezoneId = timezoneId;
+        this.autoUpdateEnabled = autoUpdateEnabled;
+
+    }
+
+    public String databaseURL() {
+        String url = new StringBuilder("jdbc:mysql://").append(schemaServer).append(':').append(schemaServerPort).append('/')
+                .append(schemaName).toString();
+        return url;
     }
 
     public Long getId() {
@@ -30,15 +47,7 @@ public class MifosPlatformTenant {
     }
 
     public String getSchemaName() {
-        return schemaName;
-    }
-
-    public String getSchemaServer() {
-        return schemaServer;
-    }
-
-    public String getSchemaServerPort() {
-        return schemaServerPort;
+        return this.schemaName;
     }
 
     public String getSchemaUsername() {
@@ -48,4 +57,13 @@ public class MifosPlatformTenant {
     public String getSchemaPassword() {
         return schemaPassword;
     }
+
+    public String getTimezoneId() {
+        return timezoneId;
+    }
+
+    public boolean isAutoUpdateEnabled() {
+        return this.autoUpdateEnabled;
+    }
+
 }

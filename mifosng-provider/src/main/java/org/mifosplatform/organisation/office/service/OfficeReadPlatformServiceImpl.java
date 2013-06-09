@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.organisation.office.service;
 
 import java.math.BigDecimal;
@@ -5,7 +10,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 
 import org.joda.time.LocalDate;
 import org.mifosplatform.infrastructure.core.domain.JdbcSupport;
@@ -14,7 +18,6 @@ import org.mifosplatform.infrastructure.security.service.PlatformSecurityContext
 import org.mifosplatform.organisation.monetary.data.CurrencyData;
 import org.mifosplatform.organisation.monetary.service.CurrencyReadPlatformService;
 import org.mifosplatform.organisation.office.data.OfficeData;
-import org.mifosplatform.organisation.office.data.OfficeLookup;
 import org.mifosplatform.organisation.office.data.OfficeTransactionData;
 import org.mifosplatform.organisation.office.exception.OfficeNotFoundException;
 import org.mifosplatform.useradministration.domain.AppUser;
@@ -52,45 +55,43 @@ public class OfficeReadPlatformServiceImpl implements OfficeReadPlatformService 
         @Override
         public OfficeData mapRow(final ResultSet rs, @SuppressWarnings("unused") final int rowNum) throws SQLException {
 
-            Long id = rs.getLong("id");
-            String name = rs.getString("name");
-            String nameDecorated = rs.getString("nameDecorated");
-            String externalId = rs.getString("externalId");
-            LocalDate openingDate = JdbcSupport.getLocalDate(rs, "openingDate");
-            String hierarchy = rs.getString("hierarchy");
-            Long parentId = JdbcSupport.getLong(rs, "parentId");
-            String parentName = rs.getString("parentName");
+            final Long id = rs.getLong("id");
+            final String name = rs.getString("name");
+            final String nameDecorated = rs.getString("nameDecorated");
+            final String externalId = rs.getString("externalId");
+            final LocalDate openingDate = JdbcSupport.getLocalDate(rs, "openingDate");
+            final String hierarchy = rs.getString("hierarchy");
+            final Long parentId = JdbcSupport.getLong(rs, "parentId");
+            final String parentName = rs.getString("parentName");
 
-            List<OfficeLookup> allowedParents = new ArrayList<OfficeLookup>();
-            return new OfficeData(id, name, nameDecorated, externalId, openingDate, hierarchy, parentId, parentName, allowedParents);
+            return new OfficeData(id, name, nameDecorated, externalId, openingDate, hierarchy, parentId, parentName, null);
         }
     }
 
-    private static final class OfficeLookupMapper implements RowMapper<OfficeLookup> {
+    private static final class OfficeDropdownMapper implements RowMapper<OfficeData> {
 
-        public String officeLookupSchema() {
+        public String schema() {
             return " o.id as id, " + nameDecoratedBaseOnHierarchy + " as nameDecorated, o.name as name from m_office o ";
         }
 
         @Override
-        public OfficeLookup mapRow(final ResultSet rs, @SuppressWarnings("unused") final int rowNum) throws SQLException {
+        public OfficeData mapRow(final ResultSet rs, @SuppressWarnings("unused") final int rowNum) throws SQLException {
 
-            Long id = rs.getLong("id");
-            String name = rs.getString("name");
-            String nameDecorated = rs.getString("nameDecorated");
+            final Long id = rs.getLong("id");
+            final String name = rs.getString("name");
+            final String nameDecorated = rs.getString("nameDecorated");
 
-            return new OfficeLookup(id, name, nameDecorated);
+            return OfficeData.dropdown(id, name, nameDecorated);
         }
     }
 
     private static final class OfficeTransactionMapper implements RowMapper<OfficeTransactionData> {
 
-        public String officeTransactionSchema() {
+        public String schema() {
             return " ot.id as id, ot.transaction_date as transactionDate, ot.from_office_id as fromOfficeId, fromoff.name as fromOfficeName, "
                     + " ot.to_office_id as toOfficeId, tooff.name as toOfficeName, ot.transaction_amount as transactionAmount, ot.description as description, "
                     + " ot.currency_code as currencyCode, rc.decimal_places as currencyDigits, "
-                    + "rc.name as currencyName, rc.internationalized_name_code as currencyNameCode, rc.display_symbol as currencyDisplaySymbol "
-
+                    + " rc.name as currencyName, rc.internationalized_name_code as currencyNameCode, rc.display_symbol as currencyDisplaySymbol "
                     + " from m_office_transaction ot "
                     + " left join m_office fromoff on fromoff.id = ot.from_office_id "
                     + " left join m_office tooff on tooff.id = ot.to_office_id " + " join m_currency rc on rc.`code` = ot.currency_code";
@@ -118,8 +119,8 @@ public class OfficeReadPlatformServiceImpl implements OfficeReadPlatformService 
             BigDecimal transactionAmount = rs.getBigDecimal("transactionAmount");
             String description = rs.getString("description");
 
-            return new OfficeTransactionData(id, transactionDate, fromOfficeId, fromOfficeName, toOfficeId, toOfficeName, currencyData,
-                    transactionAmount, description);
+            return OfficeTransactionData.instance(id, transactionDate, fromOfficeId, fromOfficeName, toOfficeId, toOfficeName,
+                    currencyData, transactionAmount, description);
         }
     }
 
@@ -138,14 +139,14 @@ public class OfficeReadPlatformServiceImpl implements OfficeReadPlatformService 
     }
 
     @Override
-    public Collection<OfficeLookup> retrieveAllOfficesForLookup() {
-        AppUser currentUser = context.authenticatedUser();
+    public Collection<OfficeData> retrieveAllOfficesForDropdown() {
+        final AppUser currentUser = context.authenticatedUser();
 
-        String hierarchy = currentUser.getOffice().getHierarchy();
-        String hierarchySearchString = hierarchy + "%";
+        final String hierarchy = currentUser.getOffice().getHierarchy();
+        final String hierarchySearchString = hierarchy + "%";
 
-        OfficeLookupMapper rm = new OfficeLookupMapper();
-        String sql = "select " + rm.officeLookupSchema() + "where o.hierarchy like ? order by o.hierarchy";
+        final OfficeDropdownMapper rm = new OfficeDropdownMapper();
+        final String sql = "select " + rm.schema() + "where o.hierarchy like ? order by o.hierarchy";
 
         return this.jdbcTemplate.query(sql, rm, new Object[] { hierarchySearchString });
     }
@@ -172,22 +173,19 @@ public class OfficeReadPlatformServiceImpl implements OfficeReadPlatformService 
 
         context.authenticatedUser();
 
-        List<OfficeLookup> parentLookups = new ArrayList<OfficeLookup>();
-
-        return OfficeData.template(parentLookups, new LocalDate());
+        return OfficeData.template(null, new LocalDate());
     }
 
     @Override
-    public List<OfficeLookup> retrieveAllowedParents(final Long officeId) {
+    public Collection<OfficeData> retrieveAllowedParents(final Long officeId) {
 
         context.authenticatedUser();
-        List<OfficeLookup> filterParentLookups = new ArrayList<OfficeLookup>();
+        Collection<OfficeData> filterParentLookups = new ArrayList<OfficeData>();
 
         if (isNotHeadOffice(officeId)) {
-            List<OfficeLookup> parentLookups = new ArrayList<OfficeLookup>(retrieveAllOfficesForLookup());
+            Collection<OfficeData> parentLookups = retrieveAllOfficesForDropdown();
 
-            for (OfficeLookup office : parentLookups) {
-
+            for (OfficeData office : parentLookups) {
                 if (!office.hasIdentifyOf(officeId)) {
                     filterParentLookups.add(office);
                 }
@@ -195,7 +193,6 @@ public class OfficeReadPlatformServiceImpl implements OfficeReadPlatformService 
         }
 
         return filterParentLookups;
-
     }
 
     private boolean isNotHeadOffice(final Long officeId) {
@@ -211,7 +208,7 @@ public class OfficeReadPlatformServiceImpl implements OfficeReadPlatformService 
         String hierarchySearchString = hierarchy + "%";
 
         OfficeTransactionMapper rm = new OfficeTransactionMapper();
-        String sql = "select " + rm.officeTransactionSchema()
+        String sql = "select " + rm.schema()
                 + " where (fromoff.hierarchy like ? or tooff.hierarchy like ?) order by ot.transaction_date, ot.id";
 
         return this.jdbcTemplate.query(sql, rm, new Object[] { hierarchySearchString, hierarchySearchString });
@@ -221,10 +218,9 @@ public class OfficeReadPlatformServiceImpl implements OfficeReadPlatformService 
     public OfficeTransactionData retrieveNewOfficeTransactionDetails() {
         context.authenticatedUser();
 
-        List<OfficeLookup> parentLookups = new ArrayList<OfficeLookup>(retrieveAllOfficesForLookup());
-        List<CurrencyData> currencyOptions = currencyReadPlatformService.retrieveAllowedCurrencies();
+        final Collection<OfficeData> parentLookups = retrieveAllOfficesForDropdown();
+        final Collection<CurrencyData> currencyOptions = currencyReadPlatformService.retrieveAllowedCurrencies();
 
-        return new OfficeTransactionData(new LocalDate(), parentLookups, currencyOptions);
+        return OfficeTransactionData.template(new LocalDate(), parentLookups, currencyOptions);
     }
-
 }

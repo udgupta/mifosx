@@ -15,3 +15,8 @@ repos
 *.iml
 *.ipr
 *.iws
+rebel.xml
+*.sublime-workspace
+*.DS_Store
+*.ini
+*~

@@ -1,7 +1,12 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.loanproduct.domain;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -14,15 +19,19 @@ import javax.persistence.JoinTable;
 import javax.persistence.ManyToMany;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
+import javax.persistence.UniqueConstraint;
 
 import org.apache.commons.lang.StringUtils;
+import org.mifosplatform.accounting.common.AccountingRuleType;
 import org.mifosplatform.infrastructure.core.api.JsonCommand;
-import org.mifosplatform.infrastructure.core.domain.AbstractAuditableCustom;
 import org.mifosplatform.organisation.monetary.domain.MonetaryCurrency;
+import org.mifosplatform.organisation.monetary.domain.Money;
 import org.mifosplatform.portfolio.charge.domain.Charge;
 import org.mifosplatform.portfolio.fund.domain.Fund;
 import org.mifosplatform.portfolio.loanaccount.loanschedule.domain.AprCalculator;
-import org.mifosplatform.useradministration.domain.AppUser;
+import org.springframework.data.jpa.domain.AbstractPersistable;
+
+import com.google.gson.JsonArray;
 
 /**
  * Loan products allow for categorisation of an organisations loans into
@@ -34,8 +43,8 @@ import org.mifosplatform.useradministration.domain.AppUser;
  * They allow for constraints to be added at product level.
  */
 @Entity
-@Table(name = "m_product_loan")
-public class LoanProduct extends AbstractAuditableCustom<AppUser, Long> {
+@Table(name = "m_product_loan", uniqueConstraints = { @UniqueConstraint(columnNames = { "name" }, name = "unq_name") })
+public class LoanProduct extends AbstractPersistable<Long> {
 
     @ManyToOne
     @JoinColumn(name = "fund_id", nullable = true)
@@ -45,7 +54,7 @@ public class LoanProduct extends AbstractAuditableCustom<AppUser, Long> {
     @JoinColumn(name = "loan_transaction_strategy_id", nullable = true)
     private LoanTransactionProcessingStrategy transactionProcessingStrategy;
 
-    @Column(name = "name", nullable = false)
+    @Column(name = "name", nullable = false, unique = true)
     private String name;
 
     @Column(name = "description")
@@ -53,13 +62,19 @@ public class LoanProduct extends AbstractAuditableCustom<AppUser, Long> {
 
     @ManyToMany
     @JoinTable(name = "m_product_loan_charge", joinColumns = @JoinColumn(name = "product_loan_id"), inverseJoinColumns = @JoinColumn(name = "charge_id"))
-    private Set<Charge> charges;
+    private List<Charge> charges;
 
     @Embedded
     private final LoanProductRelatedDetail loanProductRelatedDetail;
 
+    @Embedded
+    private LoanProductMinMaxConstraints loanProductMinMaxConstraints;
+
+    @Column(name = "accounting_type", nullable = false)
+    private Integer accountingRule;
+
     public static LoanProduct assembleFromJson(final Fund fund, final LoanTransactionProcessingStrategy loanTransactionProcessingStrategy,
-            final Set<Charge> productCharges, final JsonCommand command, final AprCalculator aprCalculator) {
+            final List<Charge> productCharges, final JsonCommand command, final AprCalculator aprCalculator) {
 
         final String name = command.stringValueOfParameterNamed("name");
         final String description = command.stringValueOfParameterNamed("description");
@@ -68,38 +83,51 @@ public class LoanProduct extends AbstractAuditableCustom<AppUser, Long> {
 
         final MonetaryCurrency currency = new MonetaryCurrency(currencyCode, digitsAfterDecimal);
         final BigDecimal principal = command.bigDecimalValueOfParameterNamed("principal");
+        final BigDecimal minPrincipal = command.bigDecimalValueOfParameterNamed("minPrincipal");
+        final BigDecimal maxPrincipal = command.bigDecimalValueOfParameterNamed("maxPrincipal");
 
         final InterestMethod interestMethod = InterestMethod.fromInt(command.integerValueOfParameterNamed("interestType"));
         final InterestCalculationPeriodMethod interestCalculationPeriodMethod = InterestCalculationPeriodMethod.fromInt(command
                 .integerValueOfParameterNamed("interestCalculationPeriodType"));
-        final AmortizationMethod amortizationMethod = AmortizationMethod.fromInt(command.integerValueOfParameterNamed("interestType"));
+        final AmortizationMethod amortizationMethod = AmortizationMethod.fromInt(command.integerValueOfParameterNamed("amortizationType"));
         final PeriodFrequencyType repaymentFrequencyType = PeriodFrequencyType.fromInt(command
                 .integerValueOfParameterNamed("repaymentFrequencyType"));
         final PeriodFrequencyType interestFrequencyType = PeriodFrequencyType.fromInt(command
                 .integerValueOfParameterNamed("interestRateFrequencyType"));
         final BigDecimal interestRatePerPeriod = command.bigDecimalValueOfParameterNamed("interestRatePerPeriod");
+        final BigDecimal minInterestRatePerPeriod = command.bigDecimalValueOfParameterNamed("minInterestRatePerPeriod");
+        final BigDecimal maxInterestRatePerPeriod = command.bigDecimalValueOfParameterNamed("maxInterestRatePerPeriod");
         final BigDecimal annualInterestRate = aprCalculator.calculateFrom(interestFrequencyType, interestRatePerPeriod);
 
         final Integer repaymentEvery = command.integerValueOfParameterNamed("repaymentEvery");
         final Integer numberOfRepayments = command.integerValueOfParameterNamed("numberOfRepayments");
+        final Integer minNumberOfRepayments = command.integerValueOfParameterNamed("minNumberOfRepayments");
+        final Integer maxNumberOfRepayments = command.integerValueOfParameterNamed("maxNumberOfRepayments");
         final BigDecimal inArrearsTolerance = command.bigDecimalValueOfParameterNamed("inArrearsTolerance");
+        final AccountingRuleType accountingRuleType = AccountingRuleType.fromInt(command.integerValueOfParameterNamed("accountingRule"));
 
-        return new LoanProduct(fund, loanTransactionProcessingStrategy, name, description, currency, principal, interestRatePerPeriod,
-                interestFrequencyType, annualInterestRate, interestMethod, interestCalculationPeriodMethod, repaymentEvery,
-                repaymentFrequencyType, numberOfRepayments, amortizationMethod, inArrearsTolerance, productCharges);
+        return new LoanProduct(fund, loanTransactionProcessingStrategy, name, description, currency, principal, minPrincipal, maxPrincipal,
+                interestRatePerPeriod, minInterestRatePerPeriod, maxInterestRatePerPeriod, interestFrequencyType, annualInterestRate,
+                interestMethod, interestCalculationPeriodMethod, repaymentEvery, repaymentFrequencyType, numberOfRepayments,
+                minNumberOfRepayments, maxNumberOfRepayments, amortizationMethod, inArrearsTolerance, productCharges, accountingRuleType);
     }
 
     protected LoanProduct() {
         this.loanProductRelatedDetail = null;
+        this.loanProductMinMaxConstraints = null;
     }
 
     public LoanProduct(final Fund fund, final LoanTransactionProcessingStrategy transactionProcessingStrategy, final String name,
             final String description, final MonetaryCurrency currency, final BigDecimal defaultPrincipal,
-            final BigDecimal defaultNominalInterestRatePerPeriod, final PeriodFrequencyType interestPeriodFrequencyType,
+            final BigDecimal defaultMinPrincipal, final BigDecimal defaultMaxPrincipal,
+            final BigDecimal defaultNominalInterestRatePerPeriod, final BigDecimal defaultMinNominalInterestRatePerPeriod,
+            final BigDecimal defaultMaxNominalInterestRatePerPeriod, final PeriodFrequencyType interestPeriodFrequencyType,
             final BigDecimal defaultAnnualNominalInterestRate, final InterestMethod interestMethod,
             final InterestCalculationPeriodMethod interestCalculationPeriodMethod, final Integer repayEvery,
             final PeriodFrequencyType repaymentFrequencyType, final Integer defaultNumberOfInstallments,
-            final AmortizationMethod amortizationMethod, final BigDecimal inArrearsTolerance, final Set<Charge> charges) {
+            final Integer defaultMinNumberOfInstallments, final Integer defaultMaxNumberOfInstallments,
+            final AmortizationMethod amortizationMethod, final BigDecimal inArrearsTolerance, final List<Charge> charges,
+            final AccountingRuleType accountingRuleType) {
         this.fund = fund;
         this.transactionProcessingStrategy = transactionProcessingStrategy;
         this.name = name.trim();
@@ -116,16 +144,20 @@ public class LoanProduct extends AbstractAuditableCustom<AppUser, Long> {
         this.loanProductRelatedDetail = new LoanProductRelatedDetail(currency, defaultPrincipal, defaultNominalInterestRatePerPeriod,
                 interestPeriodFrequencyType, defaultAnnualNominalInterestRate, interestMethod, interestCalculationPeriodMethod, repayEvery,
                 repaymentFrequencyType, defaultNumberOfInstallments, amortizationMethod, inArrearsTolerance);
+
+        this.loanProductMinMaxConstraints = new LoanProductMinMaxConstraints(defaultMinPrincipal, defaultMaxPrincipal,
+                defaultMinNominalInterestRatePerPeriod, defaultMaxNominalInterestRatePerPeriod, defaultMinNumberOfInstallments,
+                defaultMaxNumberOfInstallments);
+
+        if (accountingRuleType != null) {
+            this.accountingRule = accountingRuleType.getValue();
+        }
     }
 
     public MonetaryCurrency getCurrency() {
         return this.loanProductRelatedDetail.getCurrency();
     }
 
-    public Set<Charge> getCharges() {
-        return charges;
-    }
-    
     public void update(final Fund fund) {
         this.fund = fund;
     }
@@ -134,13 +166,44 @@ public class LoanProduct extends AbstractAuditableCustom<AppUser, Long> {
         this.transactionProcessingStrategy = strategy;
     }
 
-    public void update(final Set<Charge> charges) {
-        this.charges = charges;
+    public boolean hasCurrencyCodeOf(final String currencyCode) {
+        return this.loanProductRelatedDetail.hasCurrencyCodeOf(currencyCode);
+    }
+
+    public boolean update(final List<Charge> newProductCharges) {
+        if (newProductCharges == null) return false;
+
+        boolean updated = false;
+        if (this.charges != null) {
+            final Set<Charge> currentSetOfCharges = new HashSet<Charge>(this.charges);
+            final Set<Charge> newSetOfCharges = new HashSet<Charge>(newProductCharges);
+
+            if (!(currentSetOfCharges.equals(newSetOfCharges))) {
+                updated = true;
+                this.charges = newProductCharges;
+            }
+        } else {
+            updated = true;
+            this.charges = newProductCharges;
+        }
+        return updated;
+    }
+
+    public Integer getAccountingType() {
+        return this.accountingRule;
     }
 
     public Map<String, Object> update(final JsonCommand command, final AprCalculator aprCalculator) {
 
         final Map<String, Object> actualChanges = this.loanProductRelatedDetail.update(command, aprCalculator);
+        actualChanges.putAll(this.loanProductMinMaxConstraints().update(command));
+
+        final String accountingTypeParamName = "accountingRule";
+        if (command.isChangeInIntegerParameterNamed(accountingTypeParamName, this.accountingRule)) {
+            final Integer newValue = command.integerValueOfParameterNamed(accountingTypeParamName);
+            actualChanges.put(accountingTypeParamName, newValue);
+            this.accountingRule = newValue;
+        }
 
         final String nameParamName = "name";
         if (command.isChangeInStringParameterNamed(nameParamName, this.name)) {
@@ -177,23 +240,70 @@ public class LoanProduct extends AbstractAuditableCustom<AppUser, Long> {
         }
 
         final String chargesParamName = "charges";
-        if (command.isChangeInArrayParameterNamed(chargesParamName, getChargesIds())) {
-            final String[] newValue = command.arrayValueOfParameterNamed(chargesParamName);
-            actualChanges.put(chargesParamName, newValue);
+        if (command.hasParameter(chargesParamName)) {
+            JsonArray jsonArray = command.arrayOfParameterNamed(chargesParamName);
+            if (jsonArray != null) {
+                actualChanges.put(chargesParamName, command.jsonFragment(chargesParamName));
+            }
         }
 
         return actualChanges;
     }
 
-    private String[] getChargesIds() {
-        final List<String> chargeIds = new ArrayList<String>();
+    public boolean isCashBasedAccountingEnabled() {
+        return AccountingRuleType.CASH_BASED.getValue().equals(this.accountingRule);
+    }
 
-        if (this.charges != null) {
-            for (Charge charge : this.charges) {
-                chargeIds.add(charge.getId().toString());
-            }
-        }
+    public boolean isAccrualBasedAccountingEnabled() {
+        return AccountingRuleType.ACCRUAL_BASED.getValue().equals(this.accountingRule);
+    }
 
-        return chargeIds.toArray(new String[chargeIds.size()]);
+    public Money getPrincipalAmount() {
+        return this.loanProductRelatedDetail.getPrincipal();
+    }
+
+    public Money getMinPrincipalAmount() {
+        return Money.of(this.loanProductRelatedDetail.getCurrency(), this.loanProductMinMaxConstraints().getMinPrincipal());
+    }
+
+    public Money getMaxPrincipalAmount() {
+        return Money.of(this.loanProductRelatedDetail.getCurrency(), this.loanProductMinMaxConstraints().getMaxPrincipal());
+    }
+
+    public BigDecimal getNominalInterestRatePerPeriod() {
+        return this.loanProductRelatedDetail.getNominalInterestRatePerPeriod();
+    }
+
+    public BigDecimal getMinNominalInterestRatePerPeriod() {
+        return this.loanProductMinMaxConstraints().getMinNominalInterestRatePerPeriod();
+    }
+
+    public BigDecimal getMaxNominalInterestRatePerPeriod() {
+        return this.loanProductMinMaxConstraints().getMaxNominalInterestRatePerPeriod();
+    }
+
+    public Integer getNumberOfRepayments() {
+        return this.loanProductRelatedDetail().getNumberOfRepayments();
+    }
+
+    public Integer getMinNumberOfRepayments() {
+        return this.loanProductMinMaxConstraints().getMinNumberOfRepayments();
+    }
+
+    public Integer getMaxNumberOfRepayments() {
+        return this.loanProductMinMaxConstraints().getMaxNumberOfRepayments();
+    }
+
+    public LoanProductRelatedDetail loanProductRelatedDetail() {
+        return this.loanProductRelatedDetail;
+    }
+
+    public LoanProductMinMaxConstraints loanProductMinMaxConstraints() {
+        // If all min and max fields are null then loanProductMinMaxConstraints
+        // initialising to null
+        // Reset LoanProductMinMaxConstraints with null values.
+        this.loanProductMinMaxConstraints = (this.loanProductMinMaxConstraints == null) ? new LoanProductMinMaxConstraints(null, null,
+                null, null, null, null) : this.loanProductMinMaxConstraints;
+        return loanProductMinMaxConstraints;
     }
 }

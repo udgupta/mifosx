@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.infrastructure.core.exceptionmapper;
 
 import javax.ws.rs.core.MediaType;
@@ -24,9 +29,11 @@ import org.springframework.stereotype.Component;
 public class NoAuthorizationExceptionMapper implements ExceptionMapper<NoAuthorizationException> {
 
     @Override
-    public Response toResponse(@SuppressWarnings("unused") NoAuthorizationException exception) {
+    public Response toResponse(final NoAuthorizationException exception) {
         // Status code 403 really reads as:
         // "Authenticated - but not authorized":
-        return Response.status(Status.FORBIDDEN).entity(ApiGlobalErrorResponse.unAuthorized()).type(MediaType.APPLICATION_JSON).build();
+        final String defaultUserMessage = exception.getMessage();
+        return Response.status(Status.FORBIDDEN).entity(ApiGlobalErrorResponse.unAuthorized(defaultUserMessage))
+                .type(MediaType.APPLICATION_JSON).build();
     }
 }

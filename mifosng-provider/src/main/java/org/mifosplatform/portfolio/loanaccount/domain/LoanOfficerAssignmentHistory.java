@@ -1,9 +1,11 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.loanaccount.domain;
 
-import org.joda.time.LocalDate;
-import org.mifosplatform.infrastructure.core.domain.AbstractAuditableCustom;
-import org.mifosplatform.organisation.staff.domain.Staff;
-import org.mifosplatform.useradministration.domain.AppUser;
+import java.util.Date;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
@@ -12,18 +14,22 @@ import javax.persistence.ManyToOne;
 import javax.persistence.Table;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
-import java.util.Date;
+
+import org.apache.commons.lang.ObjectUtils;
+import org.joda.time.LocalDate;
+import org.mifosplatform.infrastructure.core.domain.AbstractAuditableCustom;
+import org.mifosplatform.organisation.staff.domain.Staff;
+import org.mifosplatform.useradministration.domain.AppUser;
 
 @Entity
 @Table(name = "m_loan_officer_assignment_history")
 public class LoanOfficerAssignmentHistory extends AbstractAuditableCustom<AppUser, Long> {
 
-	@SuppressWarnings("unused")
+    @SuppressWarnings("unused")
     @ManyToOne
     @JoinColumn(name = "loan_id", nullable = false)
     private Loan loan;
 
-    @SuppressWarnings("unused")
     @ManyToOne
     @JoinColumn(name = "loan_officer_id", nullable = true)
     private Staff loanOfficer;
@@ -32,7 +38,7 @@ public class LoanOfficerAssignmentHistory extends AbstractAuditableCustom<AppUse
     @Column(name = "start_date")
     private Date startDate;
 
-	@Temporal(TemporalType.DATE)
+    @Temporal(TemporalType.DATE)
     @Column(name = "end_date")
     private Date endDate;
 
@@ -41,7 +47,7 @@ public class LoanOfficerAssignmentHistory extends AbstractAuditableCustom<AppUse
     }
 
     protected LoanOfficerAssignmentHistory() {
-    	//
+        //
     }
 
     private LoanOfficerAssignmentHistory(final Loan loan, final Staff loanOfficer, final Date startDate, final Date endDate) {
@@ -51,31 +57,48 @@ public class LoanOfficerAssignmentHistory extends AbstractAuditableCustom<AppUse
         this.endDate = endDate;
     }
 
-    public void updateLoanOfficer(Staff loanOfficer) {
+    public void updateLoanOfficer(final Staff loanOfficer) {
         this.loanOfficer = loanOfficer;
     }
 
-    public void updateStartDate(LocalDate startDate) {
+    public void updateStartDate(final LocalDate startDate) {
         this.startDate = startDate.toDate();
     }
 
-    public void updateEndDate(LocalDate endDate) {
+    public void updateEndDate(final LocalDate endDate) {
         this.endDate = endDate.toDate();
     }
 
-	public boolean matchesStartDateOf(final LocalDate matchingDate) {
-		return getStartDate().isEqual(matchingDate);
-	}
-	
-	private LocalDate getStartDate() {
-		return new LocalDate(startDate);
-	}
+    public boolean matchesStartDateOf(final LocalDate matchingDate) {
+        return getStartDate().isEqual(matchingDate);
+    }
 
-	public boolean hasStartDateBefore(final LocalDate matchingDate) {
-		return matchingDate.isBefore(getStartDate());
-	}
+    public LocalDate getStartDate() {
+        return new LocalDate(startDate);
+    }
 
-	public boolean isCurrentRecord() {
-		return this.endDate == null;
-	}
+    public boolean hasStartDateBefore(final LocalDate matchingDate) {
+        return matchingDate.isBefore(getStartDate());
+    }
+
+    public boolean isCurrentRecord() {
+        return this.endDate == null;
+    }
+
+    /**
+     *  If endDate is null then return false.
+     * @param compareDate
+     * @return
+     */
+    public boolean isEndDateAfter(final LocalDate compareDate){
+        return this.endDate == null ? false : (new LocalDate(endDate)).isAfter(compareDate);
+    }
+ 
+    public LocalDate getEndDate(){
+        return (LocalDate) ObjectUtils.defaultIfNull(new LocalDate(this.endDate), null);
+    }
+ 
+    public boolean isSameLoanOfficer(final Staff staff){
+        return this.loanOfficer.identifiedBy(staff);
+    }
 }

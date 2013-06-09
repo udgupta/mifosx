@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.loanaccount.loanschedule.domain;
 
 import java.math.BigDecimal;
@@ -47,8 +52,7 @@ public final class LoanSchedule {
             final Integer repaymentEvery, final PeriodFrequencyType repaymentPeriodFrequencyType, final Integer numberOfRepayments,
             final AmortizationMethod amortizationMethod, final Integer loanTermFrequency,
             final PeriodFrequencyType loanTermPeriodFrequencyType, final Set<LoanCharge> loanCharges, final LocalDate disbursementDate,
-            final LocalDate repaymentStartFromDate, final LocalDate interestChargedFromDate, 
-            final BigDecimal inArrearsTolerance) {
+            final LocalDate repaymentStartFromDate, final LocalDate interestChargedFromDate, final BigDecimal inArrearsTolerance) {
         this.loanScheduleGenerator = loanScheduleGenerator;
         this.applicationCurrency = applicationCurrency;
         this.principal = principal;

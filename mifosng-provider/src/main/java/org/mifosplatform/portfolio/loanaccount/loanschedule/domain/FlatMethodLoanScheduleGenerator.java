@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.loanaccount.loanschedule.domain;
 
 import java.math.BigDecimal;
@@ -62,18 +67,23 @@ public class FlatMethodLoanScheduleGenerator implements LoanScheduleGenerator {
             }
         }
 
-        BigDecimal cumulativeChargesToDate = chargesDueAtTimeOfDisbursement;
-
         // create entries of disbursement period on loan schedule
         final LoanSchedulePeriodData disbursementPeriod = LoanSchedulePeriodData.disbursementOnlyPeriod(disbursementDate,
                 principalDisbursed.getAmount(), chargesDueAtTimeOfDisbursement, false);
         periods.add(disbursementPeriod);
 
         int loanTermInDays = Integer.valueOf(0);
-        BigDecimal cumulativePrincipalDisbursed = principalDisbursed.getAmount();
-        BigDecimal cumulativePrincipalDue = BigDecimal.ZERO;
-        BigDecimal cumulativeInterestExpected = BigDecimal.ZERO;
-        BigDecimal totalExpectedRepayment = chargesDueAtTimeOfDisbursement;
+        BigDecimal totalPrincipalDisbursed = principalDisbursed.getAmount();
+        BigDecimal totalPrincipalExpected = BigDecimal.ZERO;
+        BigDecimal totalPrincipalPaid = BigDecimal.ZERO;
+        BigDecimal totalInterestCharged = BigDecimal.ZERO;
+        BigDecimal totalFeeChargesCharged = chargesDueAtTimeOfDisbursement;
+        BigDecimal totalPenaltyChargesCharged = BigDecimal.ZERO;
+        BigDecimal totalWaived = BigDecimal.ZERO;
+        BigDecimal totalWrittenOff = BigDecimal.ZERO;
+        BigDecimal totalRepaymentExpected = chargesDueAtTimeOfDisbursement;
+        BigDecimal totalRepayment = BigDecimal.ZERO;
+        BigDecimal totalOutstanding = BigDecimal.ZERO;
 
         LocalDate startDate = disbursementDate;
         int periodNumber = 1;
@@ -103,13 +113,14 @@ public class FlatMethodLoanScheduleGenerator implements LoanScheduleGenerator {
 
             outstandingBalance = outstandingBalance.minus(principalPerInstallment);
 
-            Money feeChargesForInstallment = Money.zero(monetaryCurrency);
-            Money penaltyChargesForInstallment = Money.zero(monetaryCurrency);
+            final Money feeChargesForInstallment = cumulativeFeeChargesDueWithin(startDate, scheduledDueDate, loanCharges, monetaryCurrency);
+            final Money penaltyChargesForInstallment = cumulativePenaltyChargesDueWithin(startDate, scheduledDueDate, loanCharges,
+                    monetaryCurrency);
 
-            Money totalInstallmentDue = principalPerInstallment.plus(interestPerInstallment).plus(feeChargesForInstallment)
+            final Money totalInstallmentDue = principalPerInstallment //
+                    .plus(interestPerInstallment) //
+                    .plus(feeChargesForInstallment) //
                     .plus(penaltyChargesForInstallment);
-            cumulativeChargesToDate = cumulativeChargesToDate.add(feeChargesForInstallment.getAmount()).add(
-                    penaltyChargesForInstallment.getAmount());
 
             LoanSchedulePeriodData installment = LoanSchedulePeriodData.repaymentOnlyPeriod(periodNumber, startDate, scheduledDueDate,
                     principalPerInstallment.getAmount(), outstandingBalance.getAmount(), interestPerInstallment.getAmount(),
@@ -119,20 +130,49 @@ public class FlatMethodLoanScheduleGenerator implements LoanScheduleGenerator {
 
             // handle cumulative fields
             loanTermInDays += daysInPeriod;
-            cumulativePrincipalDue = cumulativePrincipalDue.add(principalPerInstallment.getAmount());
-            cumulativeInterestExpected = cumulativeInterestExpected.add(interestPerInstallment.getAmount());
-            totalExpectedRepayment = totalExpectedRepayment.add(totalInstallmentDue.getAmount());
+            totalPrincipalExpected = totalPrincipalExpected.add(principalPerInstallment.getAmount());
+            totalInterestCharged = totalInterestCharged.add(interestPerInstallment.getAmount());
+            totalFeeChargesCharged = totalFeeChargesCharged.add(feeChargesForInstallment.getAmount());
+            totalPenaltyChargesCharged = totalPenaltyChargesCharged.add(penaltyChargesForInstallment.getAmount());
+            totalRepaymentExpected = totalRepaymentExpected.add(totalInstallmentDue.getAmount());
             startDate = scheduledDueDate;
 
             periodNumber++;
         }
 
-        final BigDecimal cumulativePrincipalOutstanding = cumulativePrincipalDisbursed.subtract(cumulativePrincipalDue);
+        final CurrencyData currencyData = new CurrencyData(currency.getCode(), currency.getName(),
+                monetaryCurrency.getDigitsAfterDecimal(), currency.getDisplaySymbol(), currency.getNameCode());
 
-        CurrencyData currencyData = new CurrencyData(currency.getCode(), currency.getName(), monetaryCurrency.getDigitsAfterDecimal(),
-                currency.getDisplaySymbol(), currency.getNameCode());
+        return new LoanScheduleData(currencyData, periods, loanTermInDays, totalPrincipalDisbursed, totalPrincipalExpected,
+                totalPrincipalPaid, totalInterestCharged, totalFeeChargesCharged, totalPenaltyChargesCharged, totalWaived, totalWrittenOff,
+                totalRepaymentExpected, totalRepayment, totalOutstanding);
+    }
 
-        return new LoanScheduleData(currencyData, periods, loanTermInDays, cumulativePrincipalDisbursed, cumulativePrincipalDue,
-                cumulativePrincipalOutstanding, cumulativeInterestExpected, cumulativeChargesToDate, totalExpectedRepayment);
+    private Money cumulativeFeeChargesDueWithin(final LocalDate periodStart, final LocalDate periodEnd, final Set<LoanCharge> loanCharges,
+            final MonetaryCurrency monetaryCurrency) {
+
+        Money cumulative = Money.zero(monetaryCurrency);
+
+        for (LoanCharge loanCharge : loanCharges) {
+            if (loanCharge.isDueForCollectionFromAndUpToAndIncluding(periodStart, periodEnd) && loanCharge.isFeeCharge()) {
+                cumulative = cumulative.plus(loanCharge.amount());
+            }
+        }
+
+        return cumulative;
+    }
+
+    private Money cumulativePenaltyChargesDueWithin(final LocalDate periodStart, final LocalDate periodEnd,
+            final Set<LoanCharge> loanCharges, final MonetaryCurrency monetaryCurrency) {
+
+        Money cumulative = Money.zero(monetaryCurrency);
+
+        for (LoanCharge loanCharge : loanCharges) {
+            if (loanCharge.isDueForCollectionFromAndUpToAndIncluding(periodStart, periodEnd) && loanCharge.isPenaltyCharge()) {
+                cumulative = cumulative.plus(loanCharge.amount());
+            }
+        }
+
+        return cumulative;
     }
 }

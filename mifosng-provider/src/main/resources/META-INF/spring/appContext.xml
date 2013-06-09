@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this file,
+    You can obtain one at http://mozilla.org/MPL/2.0/.
+
+-->
 <beans xmlns="http://www.springframework.org/schema/beans"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xmlns:context="http://www.springframework.org/schema/context"
@@ -21,6 +28,7 @@
 										  org.mifosplatform.commands.*,
 										  org.mifosplatform.audit.*,
 										  org.mifosplatform.infrastructure.*,
+										  org.mifosplatform.scheduledjobs.*,
 										  org.mifosplatform.organisation.*, 
 										  org.mifosplatform.portfolio.loanaccount.*,
 										  org.mifosplatform.portfolio.savingsaccount.*,
@@ -34,7 +42,7 @@
 	
     <jpa:repositories base-package="org.mifosplatform.commands.domain" />
     <jpa:repositories base-package="org.mifosplatform.infrastructure.*.domain" />
-    <jpa:repositories base-package="org.mifosplatform.accounting.domain" />
+    <jpa:repositories base-package="org.mifosplatform.accounting.*.domain" />
     <jpa:repositories base-package="org.mifosplatform.useradministration.domain" />
     <jpa:repositories base-package="org.mifosplatform.organisation.*.domain" />
     <jpa:repositories base-package="org.mifosplatform.portfolio.*" />
@@ -42,4 +50,6 @@
     <import resource="infrastructure.xml" />
 		
 	<import resource="securityContext.xml" />
+
+    <import resource="scheduler.xml"/>
 </beans>

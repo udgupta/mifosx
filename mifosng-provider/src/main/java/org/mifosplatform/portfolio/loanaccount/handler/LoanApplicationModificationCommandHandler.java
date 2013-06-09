@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.loanaccount.handler;
 
 import org.mifosplatform.commands.handler.NewCommandSourceHandler;
@@ -22,6 +27,6 @@ public class LoanApplicationModificationCommandHandler implements NewCommandSour
     @Override
     public CommandProcessingResult processCommand(final JsonCommand command) {
 
-        return this.writePlatformService.modifyLoanApplication(command.entityId(), command);
+        return this.writePlatformService.modifyLoanApplication(command.getLoanId(), command);
     }
 }

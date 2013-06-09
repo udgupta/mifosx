@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.organisation.office.domain;
 
 import java.util.Date;
@@ -20,15 +25,14 @@ import javax.persistence.UniqueConstraint;
 import org.apache.commons.lang.StringUtils;
 import org.joda.time.LocalDate;
 import org.mifosplatform.infrastructure.core.api.JsonCommand;
-import org.mifosplatform.infrastructure.core.domain.AbstractAuditableCustom;
 import org.mifosplatform.organisation.office.exception.CannotUpdateOfficeWithParentOfficeSameAsSelf;
 import org.mifosplatform.organisation.office.exception.RootOfficeParentCannotBeUpdated;
-import org.mifosplatform.useradministration.domain.AppUser;
+import org.springframework.data.jpa.domain.AbstractPersistable;
 
 @Entity
 @Table(name = "m_office", uniqueConstraints = { @UniqueConstraint(columnNames = { "name" }, name = "name_org"),
         @UniqueConstraint(columnNames = { "external_id" }, name = "externalid_org") })
-public class Office extends AbstractAuditableCustom<AppUser, Long> {
+public class Office extends AbstractPersistable<Long> {
 
     @OneToMany(fetch = FetchType.EAGER)
     @JoinColumn(name = "parent_id")
@@ -41,7 +45,7 @@ public class Office extends AbstractAuditableCustom<AppUser, Long> {
     @Column(name = "name", nullable = false, length = 100)
     private String name;
 
-    @Column(name = "hierarchy", nullable = false, length = 50)
+    @Column(name = "hierarchy", nullable = true, length = 50)
     private String hierarchy;
 
     @Column(name = "opening_date", nullable = false)
@@ -101,11 +105,9 @@ public class Office extends AbstractAuditableCustom<AppUser, Long> {
         final String localeAsInput = command.locale();
 
         final String parentIdParamName = "parentId";
-        
-        if (command.parameterExists(parentIdParamName) && this.parent == null) {
-            throw new RootOfficeParentCannotBeUpdated();
-        }
-        
+
+        if (command.parameterExists(parentIdParamName) && this.parent == null) { throw new RootOfficeParentCannotBeUpdated(); }
+
         if (this.parent != null && command.isChangeInLongParameterNamed(parentIdParamName, this.parent.getId())) {
             final Long newValue = command.longValueOfParameterNamed(parentIdParamName);
             actualChanges.put(parentIdParamName, newValue);
@@ -139,6 +141,14 @@ public class Office extends AbstractAuditableCustom<AppUser, Long> {
         return actualChanges;
     }
 
+    public boolean isOpeningDateBefore(final LocalDate baseDate) {
+        return getOpeningLocalDate().isBefore(baseDate);
+    }
+
+    public boolean isOpeningDateAfter(final LocalDate activationLocalDate) {
+        return getOpeningLocalDate().isAfter(activationLocalDate);
+    }
+
     private LocalDate getOpeningLocalDate() {
         LocalDate openingLocalDate = null;
         if (this.openingDate != null) {
@@ -170,7 +180,7 @@ public class Office extends AbstractAuditableCustom<AppUser, Long> {
         }
     }
 
-    private String hierarchyOf(Long id) {
+    private String hierarchyOf(final Long id) {
         return this.hierarchy + id.toString() + ".";
     }
 
@@ -190,11 +200,11 @@ public class Office extends AbstractAuditableCustom<AppUser, Long> {
         return isParent;
     }
 
-    public boolean doesNotHaveAnOfficeInHierarchyWithId(Long officeId) {
+    public boolean doesNotHaveAnOfficeInHierarchyWithId(final Long officeId) {
         return !this.hasAnOfficeInHierarchyWithId(officeId);
     }
 
-    private boolean hasAnOfficeInHierarchyWithId(Long officeId) {
+    private boolean hasAnOfficeInHierarchyWithId(final Long officeId) {
 
         boolean match = false;
 

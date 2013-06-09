@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.useradministration.data;
 
 import java.util.Collection;
@@ -15,16 +20,13 @@ public class RolePermissionsData {
     private final String description;
 
     @SuppressWarnings("unused")
-    private final Collection<PermissionUsageData> permissionUsageData;
-    @SuppressWarnings("unused")
-    private final Collection<PermissionUsageData> currentChanges;
+    private final Collection<PermissionData> permissionUsageData;
 
     public RolePermissionsData(final Long id, final String name, final String description,
-            final Collection<PermissionUsageData> permissionUsageData, final Collection<PermissionUsageData> currentChanges) {
+            final Collection<PermissionData> permissionUsageData) {
         this.id = id;
         this.name = name;
         this.description = description;
         this.permissionUsageData = permissionUsageData;
-        this.currentChanges = currentChanges;
     }
 }

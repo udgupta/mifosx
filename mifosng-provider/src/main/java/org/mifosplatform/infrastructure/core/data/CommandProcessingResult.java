@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.infrastructure.core.data;
 
 import java.util.HashMap;
@@ -14,12 +19,18 @@ public class CommandProcessingResult {
     private final Long groupId;
     private final Long clientId;
     private final Long loanId;
-    private Long resourceId;
-    private Map<String, Object> changes;
+    private final Long savingsId;
+    private final Long resourceId;
+    private final String transactionId;
+    private final Map<String, Object> changes;
+    @SuppressWarnings("unused")
+    private final String resourceIdentifier;
 
     public static CommandProcessingResult fromDetails(final Long commandId, final Long officeId, final Long groupId, final Long clientId,
-            final Long loanId, final Long entityId, final Map<String, Object> changes) {
-        return new CommandProcessingResult(commandId, officeId, groupId, clientId, loanId, entityId, changes);
+            final Long loanId, final Long savingsId, final String resourceIdentifier, final Long entityId, final String transactionId,
+            final Map<String, Object> changes) {
+        return new CommandProcessingResult(commandId, officeId, groupId, clientId, loanId, savingsId, resourceIdentifier, entityId,
+                transactionId, changes);
     }
 
     public static CommandProcessingResult commandOnlyResult(final Long commandId) {
@@ -48,35 +59,56 @@ public class CommandProcessingResult {
     }
 
     public static CommandProcessingResult empty() {
-        return new CommandProcessingResult(Long.valueOf(-1), Long.valueOf(-1), Long.valueOf(-1), null);
+        return new CommandProcessingResult(null, null, null, null);
     }
 
+    /*
+     * Deprecated
+     */
     public CommandProcessingResult(final Long entityId) {
+        if (entityId != null) {
+            this.resourceIdentifier = entityId.toString();
+        } else {
+            this.resourceIdentifier = null;
+        }
         this.resourceId = entityId;
         this.officeId = null;
         this.groupId = null;
         this.clientId = null;
         this.loanId = null;
+        this.savingsId = null;
+        this.transactionId = null;
         this.changes = new HashMap<String, Object>();
     }
 
     private CommandProcessingResult(final Long commandId, final Long officeId, final Long groupId, final Long clientId, final Long loanId,
-            final Long resourceId, final Map<String, Object> changesOnly) {
+            final Long savingsId, final String resourceIdentifier, final Long resourceId, final String transactionId,
+            final Map<String, Object> changesOnly) {
         this.commandId = commandId;
         this.officeId = officeId;
         this.groupId = groupId;
         this.clientId = clientId;
         this.loanId = loanId;
+        this.savingsId = savingsId;
+        this.resourceIdentifier = resourceIdentifier;
         this.resourceId = resourceId;
         this.changes = changesOnly;
+        this.transactionId = transactionId;
     }
 
     private CommandProcessingResult(final Long resourceId, final Long officeId, final Long commandId, final Map<String, Object> changesOnly) {
+        if (resourceId != null) {
+            this.resourceIdentifier = resourceId.toString();
+        } else {
+            this.resourceIdentifier = null;
+        }
         this.resourceId = resourceId;
         this.officeId = officeId;
         this.groupId = null;
         this.clientId = null;
         this.loanId = null;
+        this.savingsId = null;
+        this.transactionId = null;
         this.commandId = commandId;
         this.changes = changesOnly;
     }
@@ -93,7 +125,7 @@ public class CommandProcessingResult {
         return this.officeId;
     }
 
-    public void setOfficeId(Long officeId) {
+    public void setOfficeId(final Long officeId) {
         this.officeId = officeId;
     }
 
@@ -107,6 +139,14 @@ public class CommandProcessingResult {
 
     public Long getLoanId() {
         return this.loanId;
+    }
+
+    public Long getSavingsId() {
+        return this.savingsId;
+    }
+
+    public String getTransactionId() {
+        return this.transactionId;
     }
 
     public Map<String, Object> getChanges() {

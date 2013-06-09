@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.useradministration.api;
 
 import java.util.Arrays;
@@ -22,7 +27,7 @@ import org.mifosplatform.infrastructure.core.data.CommandProcessingResult;
 import org.mifosplatform.infrastructure.core.serialization.ApiRequestJsonSerializationSettings;
 import org.mifosplatform.infrastructure.core.serialization.DefaultToApiJsonSerializer;
 import org.mifosplatform.infrastructure.security.service.PlatformSecurityContext;
-import org.mifosplatform.useradministration.data.PermissionUsageData;
+import org.mifosplatform.useradministration.data.PermissionData;
 import org.mifosplatform.useradministration.service.PermissionReadPlatformService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Scope;
@@ -39,13 +44,13 @@ public class PermissionsApiResource {
 
     private final PlatformSecurityContext context;
     private final PermissionReadPlatformService permissionReadPlatformService;
-    private final DefaultToApiJsonSerializer<PermissionUsageData> toApiJsonSerializer;
+    private final DefaultToApiJsonSerializer<PermissionData> toApiJsonSerializer;
     private final ApiRequestParameterHelper apiRequestParameterHelper;
     private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
 
     @Autowired
     public PermissionsApiResource(final PlatformSecurityContext context, final PermissionReadPlatformService readPlatformService,
-            final DefaultToApiJsonSerializer<PermissionUsageData> toApiJsonSerializer,
+            final DefaultToApiJsonSerializer<PermissionData> toApiJsonSerializer,
             final ApiRequestParameterHelper apiRequestParameterHelper,
             final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService) {
         this.context = context;
@@ -64,7 +69,7 @@ public class PermissionsApiResource {
 
         final ApiRequestJsonSerializationSettings settings = apiRequestParameterHelper.process(uriInfo.getQueryParameters());
 
-        Collection<PermissionUsageData> permissions = null;
+        Collection<PermissionData> permissions = null;
         if (settings.isMakerCheckerable()) {
             permissions = this.permissionReadPlatformService.retrieveAllMakerCheckerablePermissions();
         } else {
@@ -79,8 +84,10 @@ public class PermissionsApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     public String updatePermissionsDetails(final String apiRequestBodyAsJson) {
 
-        final CommandWrapper commandRequest = new CommandWrapperBuilder().updatePermissions().withUrl("/permissions")
-                .withJson(apiRequestBodyAsJson).build();
+        final CommandWrapper commandRequest = new CommandWrapperBuilder() //
+                .updatePermissions() //
+                .withJson(apiRequestBodyAsJson) //
+                .build();
 
         final CommandProcessingResult result = this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
 

@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.fund.service;
 
 import java.util.Map;
@@ -7,7 +12,6 @@ import org.mifosplatform.infrastructure.core.data.CommandProcessingResult;
 import org.mifosplatform.infrastructure.core.data.CommandProcessingResultBuilder;
 import org.mifosplatform.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.mifosplatform.infrastructure.security.service.PlatformSecurityContext;
-import org.mifosplatform.portfolio.fund.command.FundCommand;
 import org.mifosplatform.portfolio.fund.domain.Fund;
 import org.mifosplatform.portfolio.fund.domain.FundRepository;
 import org.mifosplatform.portfolio.fund.exception.FundNotFoundException;
@@ -30,8 +34,7 @@ public class FundWritePlatformServiceJpaRepositoryImpl implements FundWritePlatf
 
     @Autowired
     public FundWritePlatformServiceJpaRepositoryImpl(final PlatformSecurityContext context,
-            final FundCommandFromApiJsonDeserializer fromApiJsonDeserializer,
-            final FundRepository fundRepository) {
+            final FundCommandFromApiJsonDeserializer fromApiJsonDeserializer, final FundRepository fundRepository) {
         this.context = context;
         this.fromApiJsonDeserializer = fromApiJsonDeserializer;
         this.fundRepository = fundRepository;
@@ -43,11 +46,10 @@ public class FundWritePlatformServiceJpaRepositoryImpl implements FundWritePlatf
 
         try {
             context.authenticatedUser();
-            
-            final FundCommand fundCommand = this.fromApiJsonDeserializer.commandFromApiJson(command.json());
-            fundCommand.validateForCreate();
 
-            Fund fund = Fund.fromJson(command);
+            this.fromApiJsonDeserializer.validateForCreate(command.json());
+
+            final Fund fund = Fund.fromJson(command);
 
             this.fundRepository.save(fund);
 
@@ -64,13 +66,12 @@ public class FundWritePlatformServiceJpaRepositoryImpl implements FundWritePlatf
 
         try {
             context.authenticatedUser();
-            
-            final FundCommand fundCommand = this.fromApiJsonDeserializer.commandFromApiJson(command.json());
-            fundCommand.validateForUpdate();
+
+            this.fromApiJsonDeserializer.validateForUpdate(command.json());
 
             final Fund fund = this.fundRepository.findOne(fundId);
             if (fund == null) { throw new FundNotFoundException(fundId); }
-            
+
             final Map<String, Object> changes = fund.update(command);
             if (!changes.isEmpty()) {
                 this.fundRepository.saveAndFlush(fund);

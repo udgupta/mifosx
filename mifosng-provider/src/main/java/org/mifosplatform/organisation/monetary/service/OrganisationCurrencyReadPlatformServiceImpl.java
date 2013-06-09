@@ -1,8 +1,13 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.organisation.monetary.service;
 
-import java.util.List;
+import java.util.Collection;
 
-import org.mifosplatform.organisation.monetary.data.ConfigurationData;
+import org.mifosplatform.organisation.monetary.data.ApplicationCurrencyConfigurationData;
 import org.mifosplatform.organisation.monetary.data.CurrencyData;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -18,14 +23,14 @@ public class OrganisationCurrencyReadPlatformServiceImpl implements Organisation
     }
 
     @Override
-    public ConfigurationData retrieveCurrencyConfiguration() {
+    public ApplicationCurrencyConfigurationData retrieveCurrencyConfiguration() {
 
-        final List<CurrencyData> selectedCurrencyOptions = this.currencyReadPlatformService.retrieveAllowedCurrencies();
-        final List<CurrencyData> currencyOptions = this.currencyReadPlatformService.retrieveAllPlatformCurrencies();
+        final Collection<CurrencyData> selectedCurrencyOptions = this.currencyReadPlatformService.retrieveAllowedCurrencies();
+        final Collection<CurrencyData> currencyOptions = this.currencyReadPlatformService.retrieveAllPlatformCurrencies();
 
         // remove selected currency options
         currencyOptions.removeAll(selectedCurrencyOptions);
 
-        return new ConfigurationData(currencyOptions, selectedCurrencyOptions);
+        return new ApplicationCurrencyConfigurationData(currencyOptions, selectedCurrencyOptions);
     }
 }

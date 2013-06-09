@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.organisation.monetary.service;
 
 import java.util.ArrayList;
@@ -11,10 +16,8 @@ import org.mifosplatform.infrastructure.core.api.JsonCommand;
 import org.mifosplatform.infrastructure.core.data.CommandProcessingResult;
 import org.mifosplatform.infrastructure.core.data.CommandProcessingResultBuilder;
 import org.mifosplatform.infrastructure.security.service.PlatformSecurityContext;
-import org.mifosplatform.organisation.monetary.command.CurrencyCommand;
 import org.mifosplatform.organisation.monetary.domain.ApplicationCurrency;
-import org.mifosplatform.organisation.monetary.domain.ApplicationCurrencyRepository;
-import org.mifosplatform.organisation.monetary.exception.CurrencyNotFoundException;
+import org.mifosplatform.organisation.monetary.domain.ApplicationCurrencyRepositoryWrapper;
 import org.mifosplatform.organisation.monetary.serialization.CurrencyCommandFromApiJsonDeserializer;
 import org.mifosplatform.organisation.office.domain.OrganisationCurrency;
 import org.mifosplatform.organisation.office.domain.OrganisationCurrencyRepository;
@@ -26,14 +29,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class CurrencyWritePlatformServiceJpaRepositoryImpl implements CurrencyWritePlatformService {
 
     private final PlatformSecurityContext context;
-    private final ApplicationCurrencyRepository applicationCurrencyRepository;
+    private final ApplicationCurrencyRepositoryWrapper applicationCurrencyRepository;
     private final OrganisationCurrencyRepository organisationCurrencyRepository;
     private final CurrencyCommandFromApiJsonDeserializer fromApiJsonDeserializer;
 
     @Autowired
     public CurrencyWritePlatformServiceJpaRepositoryImpl(final PlatformSecurityContext context,
             final CurrencyCommandFromApiJsonDeserializer fromApiJsonDeserializer,
-            final ApplicationCurrencyRepository applicationCurrencyRepository,
+            final ApplicationCurrencyRepositoryWrapper applicationCurrencyRepository,
             final OrganisationCurrencyRepository organisationCurrencyRepository) {
         this.context = context;
         this.fromApiJsonDeserializer = fromApiJsonDeserializer;
@@ -47,19 +50,18 @@ public class CurrencyWritePlatformServiceJpaRepositoryImpl implements CurrencyWr
 
         context.authenticatedUser();
 
-        final CurrencyCommand currencyCommand = this.fromApiJsonDeserializer.commandFromApiJson(command.json());
-        currencyCommand.validateForUpdate();
+        this.fromApiJsonDeserializer.validateForUpdate(command.json());
+
+        final String[] currencies = command.arrayValueOfParameterNamed("currencies");
 
         final Map<String, Object> changes = new LinkedHashMap<String, Object>();
         final List<String> allowedCurrencyCodes = new ArrayList<String>();
         final Set<OrganisationCurrency> allowedCurrencies = new HashSet<OrganisationCurrency>();
-        for (final String currencyCode : currencyCommand.getCurrencies()) {
+        for (final String currencyCode : currencies) {
 
-            final ApplicationCurrency currency = this.applicationCurrencyRepository.findOneByCode(currencyCode);
-            if (currency == null) { throw new CurrencyNotFoundException(currencyCode); }
+            final ApplicationCurrency currency = this.applicationCurrencyRepository.findOneWithNotFoundDetection(currencyCode);
 
-            final OrganisationCurrency allowedCurrency = new OrganisationCurrency(currency.getCode(), currency.getName(),
-                    currency.getDecimalPlaces(), currency.getNameCode(), currency.getDisplaySymbol());
+            final OrganisationCurrency allowedCurrency = currency.toOrganisationCurrency();
 
             allowedCurrencyCodes.add(currencyCode);
             allowedCurrencies.add(allowedCurrency);
@@ -70,6 +72,9 @@ public class CurrencyWritePlatformServiceJpaRepositoryImpl implements CurrencyWr
         this.organisationCurrencyRepository.deleteAll();
         this.organisationCurrencyRepository.save(allowedCurrencies);
 
-        return new CommandProcessingResultBuilder().withCommandId(command.commandId()).with(changes).build();
+        return new CommandProcessingResultBuilder() //
+                .withCommandId(command.commandId()) //
+                .with(changes) //
+                .build();
     }
 }

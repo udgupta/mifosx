@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.organisation.office.domain;
 
 import java.math.BigDecimal;
@@ -15,14 +20,13 @@ import javax.persistence.TemporalType;
 
 import org.joda.time.LocalDate;
 import org.mifosplatform.infrastructure.core.api.JsonCommand;
-import org.mifosplatform.infrastructure.core.domain.AbstractAuditableCustom;
 import org.mifosplatform.organisation.monetary.domain.MonetaryCurrency;
 import org.mifosplatform.organisation.monetary.domain.Money;
-import org.mifosplatform.useradministration.domain.AppUser;
+import org.springframework.data.jpa.domain.AbstractPersistable;
 
 @Entity
 @Table(name = "m_office_transaction")
-public class OfficeTransaction extends AbstractAuditableCustom<AppUser, Long> {
+public class OfficeTransaction extends AbstractPersistable<Long> {
 
     @SuppressWarnings("unused")
     @ManyToOne(fetch = FetchType.LAZY)

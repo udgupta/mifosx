@@ -1,15 +1,28 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.loanaccount.service;
+
+import java.util.Map;
 
 import org.mifosplatform.infrastructure.core.api.JsonCommand;
 import org.mifosplatform.infrastructure.core.data.CommandProcessingResult;
+import org.mifosplatform.portfolio.collectionsheet.command.CollectionSheetBulkDisbursalCommand;
+import org.mifosplatform.portfolio.collectionsheet.command.CollectionSheetBulkRepaymentCommand;
 
 public interface LoanWritePlatformService {
 
     CommandProcessingResult disburseLoan(Long loanId, JsonCommand command);
+    
+    Map<String, Object> bulkLoanDisbursal(JsonCommand command, CollectionSheetBulkDisbursalCommand bulkDisbursalCommand);
 
     CommandProcessingResult undoLoanDisbursal(Long loanId, JsonCommand command);
 
     CommandProcessingResult makeLoanRepayment(Long loanId, JsonCommand command);
+    
+    Map<String, Object> makeLoanBulkRepayment(CollectionSheetBulkRepaymentCommand bulkRepaymentCommand);
 
     CommandProcessingResult adjustLoanTransaction(Long loanId, Long transactionId, JsonCommand command);
 
@@ -32,4 +45,6 @@ public interface LoanWritePlatformService {
     CommandProcessingResult loanReassignment(Long loanId, JsonCommand command);
 
     CommandProcessingResult bulkLoanReassignment(JsonCommand command);
+
+    CommandProcessingResult removeLoanOfficer(Long loanId, JsonCommand command);
 }

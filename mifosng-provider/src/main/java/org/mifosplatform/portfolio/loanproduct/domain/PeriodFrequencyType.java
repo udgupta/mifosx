@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.loanproduct.domain;
 
 public enum PeriodFrequencyType {
@@ -24,24 +29,22 @@ public enum PeriodFrequencyType {
     }
 
     public static PeriodFrequencyType fromInt(final Integer frequency) {
-
         PeriodFrequencyType repaymentFrequencyType = PeriodFrequencyType.INVALID;
-        switch (frequency) {
-            case 0:
-                repaymentFrequencyType = PeriodFrequencyType.DAYS;
-            break;
-            case 1:
-                repaymentFrequencyType = PeriodFrequencyType.WEEKS;
-            break;
-            case 2:
-                repaymentFrequencyType = PeriodFrequencyType.MONTHS;
-            break;
-            case 3:
-                repaymentFrequencyType = PeriodFrequencyType.YEARS;
-            break;
-            default:
-                repaymentFrequencyType = PeriodFrequencyType.INVALID;
-            break;
+        if (frequency != null) {
+            switch (frequency) {
+                case 0:
+                    repaymentFrequencyType = PeriodFrequencyType.DAYS;
+                break;
+                case 1:
+                    repaymentFrequencyType = PeriodFrequencyType.WEEKS;
+                break;
+                case 2:
+                    repaymentFrequencyType = PeriodFrequencyType.MONTHS;
+                break;
+                case 3:
+                    repaymentFrequencyType = PeriodFrequencyType.YEARS;
+                break;
+            }
         }
         return repaymentFrequencyType;
     }

@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.infrastructure.core.data;
 
 import java.util.Map;
@@ -13,11 +18,15 @@ public class CommandProcessingResultBuilder {
     private Long groupId;
     private Long clientId;
     private Long loanId;
+    private Long savingsId;
+    private String resourceIdentifier;
     private Long entityId;
+    private String transactionId;
     private Map<String, Object> changes;
 
     public CommandProcessingResult build() {
-        return CommandProcessingResult.fromDetails(commandId, officeId, groupId, clientId, loanId, entityId, changes);
+        return CommandProcessingResult.fromDetails(commandId, officeId, groupId, clientId, loanId, savingsId, resourceIdentifier, entityId,
+                transactionId, changes);
     }
 
     public CommandProcessingResultBuilder withCommandId(final Long withCommandId) {
@@ -27,6 +36,11 @@ public class CommandProcessingResultBuilder {
 
     public CommandProcessingResultBuilder with(final Map<String, Object> withChanges) {
         this.changes = withChanges;
+        return this;
+    }
+
+    public CommandProcessingResultBuilder withResourceIdAsString(final String withResourceIdentifier) {
+        this.resourceIdentifier = withResourceIdentifier;
         return this;
     }
 
@@ -49,9 +63,19 @@ public class CommandProcessingResultBuilder {
         this.groupId = withGroupId;
         return this;
     }
-    
+
     public CommandProcessingResultBuilder withLoanId(final Long withLoanId) {
         this.loanId = withLoanId;
+        return this;
+    }
+
+    public CommandProcessingResultBuilder withSavingsId(final Long withSavingsId) {
+        this.savingsId = withSavingsId;
+        return this;
+    }
+
+    public CommandProcessingResultBuilder withTransactionId(final String withTransactionId) {
+        this.transactionId = withTransactionId;
         return this;
     }
 }

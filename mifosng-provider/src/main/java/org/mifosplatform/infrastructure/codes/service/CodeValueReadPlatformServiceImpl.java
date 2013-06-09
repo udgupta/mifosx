@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.infrastructure.codes.service;
 
 import java.sql.ResultSet;
@@ -15,42 +20,64 @@ import org.springframework.stereotype.Service;
 @Service
 public class CodeValueReadPlatformServiceImpl implements CodeValueReadPlatformService {
 
-	private final JdbcTemplate jdbcTemplate;
-	private final PlatformSecurityContext context;
+    private final JdbcTemplate jdbcTemplate;
+    private final PlatformSecurityContext context;
 
-	@Autowired
-	public CodeValueReadPlatformServiceImpl(final PlatformSecurityContext context, final TenantAwareRoutingDataSource dataSource) {
-		this.context = context;
-		this.jdbcTemplate = new JdbcTemplate(dataSource);
-	}
+    @Autowired
+    public CodeValueReadPlatformServiceImpl(final PlatformSecurityContext context, final TenantAwareRoutingDataSource dataSource) {
+        this.context = context;
+        this.jdbcTemplate = new JdbcTemplate(dataSource);
+    }
 
-	private static final class CodeValueDataMapper implements RowMapper<CodeValueData> {
+    private static final class CodeValueDataMapper implements RowMapper<CodeValueData> {
 
-		public String schema() {
-			return " cv.id as id, cv.code_value as value, cv.code_id as codeId, cv.order_position as position"
-					+ " from m_code_value as cv join m_code c on cv.code_id = c.id ";
-		}
+        public String schema() {
+            return " cv.id as id, cv.code_value as value, cv.code_id as codeId, cv.order_position as position"
+                    + " from m_code_value as cv join m_code c on cv.code_id = c.id ";
+        }
 
-		@Override
-		public CodeValueData mapRow(final ResultSet rs, @SuppressWarnings("unused") final int rowNum)
-				throws SQLException {
+        @Override
+        public CodeValueData mapRow(final ResultSet rs, @SuppressWarnings("unused") final int rowNum) throws SQLException {
 
-			final Long id = rs.getLong("id");
-			final String value = rs.getString("value");
-			final Integer position = rs.getInt("position");
+            final Long id = rs.getLong("id");
+            final String value = rs.getString("value");
+            final Integer position = rs.getInt("position");
 
-			return new CodeValueData(id, value, position);
-		}
-	}
-	
-	@Override
-	public Collection<CodeValueData> retrieveCustomIdentifierCodeValues() {
-		
-		context.authenticatedUser();
+            return CodeValueData.instance(id, value, position);
+        }
+    }
 
-		final CodeValueDataMapper rm = new CodeValueDataMapper();
-		final String sql = "select " + rm.schema() + "where c.code_name like ? order by position";
+    @Override
+    public Collection<CodeValueData> retrieveCodeValuesByCode(final String code) {
 
-		return this.jdbcTemplate.query(sql, rm, new Object[] {"Customer Identifier"});
-	}
+        context.authenticatedUser();
+
+        final CodeValueDataMapper rm = new CodeValueDataMapper();
+        final String sql = "select " + rm.schema() + "where c.code_name like ? order by position";
+
+        return this.jdbcTemplate.query(sql, rm, new Object[] { code });
+    }
+
+    @Override
+    public Collection<CodeValueData> retrieveAllCodeValues(Long codeId) {
+
+        context.authenticatedUser();
+
+        final CodeValueDataMapper rm = new CodeValueDataMapper();
+        final String sql = "select " + rm.schema() + "where cv.code_id = ? order by position";
+
+        return this.jdbcTemplate.query(sql, rm, new Object[] { codeId });
+    }
+
+    @Override
+    public CodeValueData retrieveCodeValue(Long codeValueId) {
+
+        context.authenticatedUser();
+
+        final CodeValueDataMapper rm = new CodeValueDataMapper();
+        final String sql = "select " + rm.schema() + "where cv.id = ? order by position";
+
+        return this.jdbcTemplate.queryForObject(sql, rm, new Object[] { codeValueId });
+
+    }
 }

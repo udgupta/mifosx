@@ -1,37 +1,35 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.client.service;
 
 import java.util.Collection;
 
+import org.mifosplatform.infrastructure.core.service.Page;
 import org.mifosplatform.portfolio.client.data.ClientAccountSummaryCollectionData;
 import org.mifosplatform.portfolio.client.data.ClientAccountSummaryData;
 import org.mifosplatform.portfolio.client.data.ClientData;
-import org.mifosplatform.portfolio.client.data.ClientIdentifierData;
-import org.mifosplatform.portfolio.client.data.ClientLookup;
-import org.mifosplatform.portfolio.client.data.NoteData;
+import org.mifosplatform.portfolio.group.service.SearchParameters;
 
 public interface ClientReadPlatformService {
 
-    Collection<ClientData> retrieveAllIndividualClients(String extraCriteria);
+    ClientData retrieveTemplate();
 
-    ClientData retrieveIndividualClient(Long clientId);
+    Page<ClientData> retrieveAll(SearchParameters searchParameters);
 
-    ClientData retrieveNewClientDetails();
+    ClientData retrieveOne(Long clientId);
 
-    Collection<ClientLookup> retrieveAllIndividualClientsForLookup(String extraCriteria);
+    Collection<ClientData> retrieveAllForLookup(String extraCriteria);
 
-    Collection<ClientLookup> retrieveAllIndividualClientsForLookupByOfficeId(Long officeId);
+    Collection<ClientData> retrieveAllForLookupByOfficeId(Long officeId);
 
     ClientAccountSummaryCollectionData retrieveClientAccountDetails(Long clientId);
 
     Collection<ClientAccountSummaryData> retrieveClientLoanAccountsByLoanOfficerId(Long clientId, Long loanOfficerId);
 
-    Collection<NoteData> retrieveAllClientNotes(Long clientId);
-
-    NoteData retrieveClientNote(Long clientId, Long noteId);
-
-    Collection<ClientIdentifierData> retrieveClientIdentifiers(Long clientId);
-
-    ClientIdentifierData retrieveClientIdentifier(Long clientId, Long clientIdentifierId);
-
     ClientData retrieveClientByIdentifier(Long identifierTypeId, String identifierKey);
+
+    Collection<ClientData> retrieveClientMembersOfGroup(Long groupId);
 }

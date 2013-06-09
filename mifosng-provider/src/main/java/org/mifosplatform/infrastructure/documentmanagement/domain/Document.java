@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.infrastructure.documentmanagement.domain;
 
 import javax.persistence.Column;
@@ -5,13 +10,12 @@ import javax.persistence.Entity;
 import javax.persistence.Table;
 
 import org.apache.commons.lang.StringUtils;
-import org.mifosplatform.infrastructure.core.domain.AbstractAuditableCustom;
 import org.mifosplatform.infrastructure.documentmanagement.command.DocumentCommand;
-import org.mifosplatform.useradministration.domain.AppUser;
+import org.springframework.data.jpa.domain.AbstractPersistable;
 
 @Entity
 @Table(name = "m_document")
-public class Document extends AbstractAuditableCustom<AppUser, Long> {
+public class Document extends AbstractPersistable<Long> {
 
     @Column(name = "parent_entity_type", length = 50)
     private String parentEntityType;
@@ -39,13 +43,13 @@ public class Document extends AbstractAuditableCustom<AppUser, Long> {
 
     public Document() {}
 
-    public static Document createNew(String parentEntityType, Long parentEntityId, String name, String fileName, Long size, String type,
-            String description, String location) {
+    public static Document createNew(final String parentEntityType, final Long parentEntityId, final String name, final String fileName,
+            final Long size, final String type, final String description, final String location) {
         return new Document(parentEntityType, parentEntityId, name, fileName, size, type, description, location);
     }
 
-    private Document(String parentEntityType, Long parentEntityId, String name, String fileName, Long size, String type,
-            String description, String location) {
+    private Document(final String parentEntityType, final Long parentEntityId, final String name, final String fileName, final Long size,
+            final String type, final String description, final String location) {
         this.parentEntityType = StringUtils.defaultIfEmpty(parentEntityType, null);
         this.parentEntityId = parentEntityId;
         this.name = StringUtils.defaultIfEmpty(name, null);
@@ -79,66 +83,66 @@ public class Document extends AbstractAuditableCustom<AppUser, Long> {
     }
 
     public String getParentEntityType() {
-        return parentEntityType;
+        return this.parentEntityType;
     }
 
-    public void setParentEntityType(String parentEntityType) {
+    public void setParentEntityType(final String parentEntityType) {
         this.parentEntityType = parentEntityType;
     }
 
     public Long getParentEntityId() {
-        return parentEntityId;
+        return this.parentEntityId;
     }
 
-    public void setParentEntityId(Long parentEntityId) {
+    public void setParentEntityId(final Long parentEntityId) {
         this.parentEntityId = parentEntityId;
     }
 
     public String getName() {
-        return name;
+        return this.name;
     }
 
-    public void setName(String name) {
+    public void setName(final String name) {
         this.name = name;
     }
 
     public String getFileName() {
-        return fileName;
+        return this.fileName;
     }
 
-    public void setFileName(String fileName) {
+    public void setFileName(final String fileName) {
         this.fileName = fileName;
     }
 
     public Long getSize() {
-        return size;
+        return this.size;
     }
 
-    public void setSize(Long size) {
+    public void setSize(final Long size) {
         this.size = size;
     }
 
     public String getType() {
-        return type;
+        return this.type;
     }
 
-    public void setType(String type) {
+    public void setType(final String type) {
         this.type = type;
     }
 
     public String getDescription() {
-        return description;
+        return this.description;
     }
 
-    public void setDescription(String description) {
+    public void setDescription(final String description) {
         this.description = description;
     }
 
     public String getLocation() {
-        return location;
+        return this.location;
     }
 
-    public void setLocation(String location) {
+    public void setLocation(final String location) {
         this.location = location;
     }
 

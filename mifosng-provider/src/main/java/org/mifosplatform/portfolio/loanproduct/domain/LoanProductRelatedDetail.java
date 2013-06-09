@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.loanproduct.domain;
 
 import java.math.BigDecimal;
@@ -28,7 +33,7 @@ public class LoanProductRelatedDetail implements LoanProductMinimumRepaymentSche
 
     @Column(name = "principal_amount", scale = 6, precision = 19, nullable = false)
     private BigDecimal principal;
-
+    
     @Column(name = "nominal_interest_rate_per_period", scale = 6, precision = 19, nullable = false)
     private BigDecimal nominalInterestRatePerPeriod;
 
@@ -64,7 +69,7 @@ public class LoanProductRelatedDetail implements LoanProductMinimumRepaymentSche
 
     @Column(name = "number_of_repayments", nullable = false)
     private Integer numberOfRepayments;
-
+    
     // FIXME - move away form JPA ordinal use for enums using just integer -
     // requires sql patch for existing users of software.
     @Enumerated(EnumType.ORDINAL)
@@ -91,7 +96,7 @@ public class LoanProductRelatedDetail implements LoanProductMinimumRepaymentSche
     }
 
     public LoanProductRelatedDetail(final MonetaryCurrency currency, final BigDecimal defaultPrincipal,
-            final BigDecimal defaultNominalInterestRatePerPeriod, final PeriodFrequencyType interestPeriodFrequencyType,
+            final BigDecimal defaultNominalInterestRatePerPeriod,final PeriodFrequencyType interestPeriodFrequencyType,
             final BigDecimal defaultAnnualNominalInterestRate, final InterestMethod interestMethod,
             final InterestCalculationPeriodMethod interestCalculationPeriodMethod, final Integer repayEvery,
             final PeriodFrequencyType repaymentFrequencyType, final Integer defaultNumberOfRepayments,
@@ -121,7 +126,7 @@ public class LoanProductRelatedDetail implements LoanProductMinimumRepaymentSche
     public Money getPrincipal() {
         return Money.of(this.currency, this.principal);
     }
-
+    
     public Money getInArrearsTolerance() {
         return Money.of(this.currency, this.inArrearsTolerance);
     }
@@ -160,7 +165,7 @@ public class LoanProductRelatedDetail implements LoanProductMinimumRepaymentSche
     public Integer getNumberOfRepayments() {
         return numberOfRepayments;
     }
-
+    
     public AmortizationMethod getAmortizationMethod() {
         return amortizationMethod;
     }
@@ -226,7 +231,7 @@ public class LoanProductRelatedDetail implements LoanProductMinimumRepaymentSche
             actualChanges.put("locale", localeAsInput);
             this.repaymentPeriodFrequencyType = PeriodFrequencyType.fromInt(newValue);
         }
-
+        
         final String numberOfRepaymentsParamName = "numberOfRepayments";
         if (command.isChangeInIntegerParameterNamed(numberOfRepaymentsParamName, this.numberOfRepayments)) {
             final Integer newValue = command.integerValueOfParameterNamed(numberOfRepaymentsParamName);
@@ -250,7 +255,7 @@ public class LoanProductRelatedDetail implements LoanProductMinimumRepaymentSche
             actualChanges.put("locale", localeAsInput);
             this.inArrearsTolerance = newValue;
         }
-
+        
         final String interestRatePerPeriodParamName = "interestRatePerPeriod";
         if (command.isChangeInBigDecimalParameterNamed(interestRatePerPeriodParamName, this.nominalInterestRatePerPeriod)) {
             final BigDecimal newValue = command.bigDecimalValueOfParameterNamed(interestRatePerPeriodParamName);
@@ -291,5 +296,9 @@ public class LoanProductRelatedDetail implements LoanProductMinimumRepaymentSche
 
     private void updateInterestRateDerivedFields(final AprCalculator aprCalculator) {
         this.annualNominalInterestRate = aprCalculator.calculateFrom(this.interestPeriodFrequencyType, this.nominalInterestRatePerPeriod);
+    }
+
+    public boolean hasCurrencyCodeOf(final String currencyCode) {
+        return this.currency.getCode().equalsIgnoreCase(currencyCode);
     }
 }

@@ -1,7 +1,12 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.infrastructure.core.service;
 
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import javax.sql.DataSource;
 
@@ -23,7 +28,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class TomcatJdbcDataSourcePerTenantService implements DataSourcePerTenantService {
 
-    private final Map<Long, DataSource> tenantToDataSourceMap = new ConcurrentHashMap<Long, DataSource>(1);
+    private final Map<Long, DataSource> tenantToDataSourceMap = new HashMap<Long, DataSource>(1);
     private final DataSource tenantDataSource;
 
     @Autowired
@@ -39,13 +44,16 @@ public class TomcatJdbcDataSourcePerTenantService implements DataSourcePerTenant
 
         MifosPlatformTenant tenant = ThreadLocalContextUtil.getTenant();
         if (tenant != null) {
-            // if tenant information available switch to appropriate datasource
-            // for that tenant.
-            if (this.tenantToDataSourceMap.containsKey(tenant.getId())) {
-                tenantDataSource = this.tenantToDataSourceMap.get(tenant.getId());
-            } else {
-                tenantDataSource = createNewDataSourceFor(tenant);
-                this.tenantToDataSourceMap.put(tenant.getId(), tenantDataSource);
+            synchronized (this.tenantToDataSourceMap) {
+                // if tenant information available switch to appropriate
+                // datasource
+                // for that tenant.
+                if (this.tenantToDataSourceMap.containsKey(tenant.getId())) {
+                    tenantDataSource = this.tenantToDataSourceMap.get(tenant.getId());
+                } else {
+                    tenantDataSource = createNewDataSourceFor(tenant);
+                    this.tenantToDataSourceMap.put(tenant.getId(), tenantDataSource);
+                }
             }
         }
 
@@ -56,24 +64,23 @@ public class TomcatJdbcDataSourcePerTenantService implements DataSourcePerTenant
         // see
         // http://www.tomcatexpert.com/blog/2010/04/01/configuring-jdbc-pool-high-concurrency
 
-        StringBuilder jdbcUrlBuilder = new StringBuilder("jdbc:mysql://").append(tenant.getSchemaServer()).append(':')
-                .append(tenant.getSchemaServerPort()).append('/').append(tenant.getSchemaName());
+        String jdbcUrl = tenant.databaseURL();
 
         PoolConfiguration poolConfiguration = new PoolProperties();
         poolConfiguration.setDriverClassName("com.mysql.jdbc.Driver");
         poolConfiguration.setName(tenant.getSchemaName() + "_pool");
-        poolConfiguration.setUrl(jdbcUrlBuilder.toString());
+        poolConfiguration.setUrl(jdbcUrl);
         poolConfiguration.setUsername(tenant.getSchemaUsername());
         poolConfiguration.setPassword(tenant.getSchemaPassword());
 
         poolConfiguration.setInitialSize(5);
-        poolConfiguration.setMaxActive(5);
-        poolConfiguration.setMinIdle(1);
-        poolConfiguration.setMaxIdle(4);
+        // poolConfiguration.setMaxActive(5);
+        // poolConfiguration.setMinIdle(1);
+        // poolConfiguration.setMaxIdle(4);
 
-        poolConfiguration.setSuspectTimeout(60);
-        poolConfiguration.setTimeBetweenEvictionRunsMillis(30000);
-        poolConfiguration.setMinEvictableIdleTimeMillis(60000);
+        // poolConfiguration.setSuspectTimeout(60);
+        // poolConfiguration.setTimeBetweenEvictionRunsMillis(30000);
+        // poolConfiguration.setMinEvictableIdleTimeMillis(60000);
 
         poolConfiguration.setTestOnBorrow(true);
         poolConfiguration.setValidationQuery("SELECT 1");

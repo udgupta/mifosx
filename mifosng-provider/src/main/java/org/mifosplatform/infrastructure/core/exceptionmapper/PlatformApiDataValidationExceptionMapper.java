@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.infrastructure.core.exceptionmapper;
 
 import javax.ws.rs.core.MediaType;
@@ -24,11 +29,11 @@ import org.springframework.stereotype.Component;
 public class PlatformApiDataValidationExceptionMapper implements ExceptionMapper<PlatformApiDataValidationException> {
 
     @Override
-    public Response toResponse(PlatformApiDataValidationException exception) {
+    public Response toResponse(final PlatformApiDataValidationException exception) {
 
-        ApiGlobalErrorResponse dataIntegrityError = ApiGlobalErrorResponse.badClientRequest(exception.getGlobalisationMessageCode(),
+        final ApiGlobalErrorResponse dataValidationErrorResponse = ApiGlobalErrorResponse.badClientRequest(exception.getGlobalisationMessageCode(),
                 exception.getDefaultUserMessage(), exception.getErrors());
 
-        return Response.status(Status.BAD_REQUEST).entity(dataIntegrityError).type(MediaType.APPLICATION_JSON).build();
+        return Response.status(Status.BAD_REQUEST).entity(dataValidationErrorResponse).type(MediaType.APPLICATION_JSON).build();
     }
 }

@@ -1,11 +1,14 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.charge.service;
 
 import java.util.Collection;
 
 import org.mifosplatform.portfolio.charge.data.ChargeData;
-import org.mifosplatform.portfolio.loanaccount.data.LoanChargeData;
 
-// FIXME - KW - break out methods that belong to product charges and loan charges
 public interface ChargeReadPlatformService {
 
     Collection<ChargeData> retrieveAllCharges();
@@ -17,10 +20,4 @@ public interface ChargeReadPlatformService {
     Collection<ChargeData> retrieveLoanApplicableCharges(boolean feeChargesOnly);
 
     Collection<ChargeData> retrieveLoanProductCharges(Long loanProductId);
-
-    Collection<LoanChargeData> retrieveLoanCharges(Long loanId);
-
-    LoanChargeData retrieveLoanChargeDetails(Long loanChargeId, Long loanId);
-
-    ChargeData retrieveLoanChargeTemplate();
 }

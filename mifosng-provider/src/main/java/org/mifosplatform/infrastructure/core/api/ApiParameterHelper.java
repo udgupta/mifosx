@@ -1,7 +1,15 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.infrastructure.core.api;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.ws.rs.core.MultivaluedMap;
@@ -98,7 +106,7 @@ public class ApiParameterHelper {
         }
         return makerCheckerable;
     }
-    
+
     public static boolean includeJson(final MultivaluedMap<String, String> queryParams) {
         boolean includeJson = false;
         if (queryParams.getFirst("includeJson") != null) {
@@ -117,9 +125,25 @@ public class ApiParameterHelper {
         return genericResultSet;
     }
 
+    public static boolean genericResultSetPassed(MultivaluedMap<String, String> queryParams) {
+        return queryParams.getFirst("genericResultSet") != null;
+    }
+    
     public static String sqlEncodeString(String str) {
         String singleQuote = "'";
         String twoSingleQuotes = "''";
         return singleQuote + StringUtils.replace(str, singleQuote, twoSingleQuotes, -1) + singleQuote;
+    }
+
+    public static Map<String, String> asMap(MultivaluedMap<String, String> queryParameters) {
+
+        final Map<String, String> map = new HashMap<String, String>(queryParameters.size());
+
+        for (String parameterName : queryParameters.keySet()) {
+            List<String> values = queryParameters.get(parameterName);
+            map.put(parameterName, values.get(0));
+        }
+
+        return map;
     }
 }

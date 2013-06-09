@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.charge.api;
 
 import java.util.Arrays;
@@ -85,7 +90,7 @@ public class ChargesApiResource {
         ChargeData charge = this.readPlatformService.retrieveCharge(chargeId);
         if (settings.isTemplate()) {
             ChargeData templateData = this.readPlatformService.retrieveNewChargeDetails();
-            charge = new ChargeData(charge, templateData);
+            charge = ChargeData.withTemplate(charge, templateData);
         }
 
         return this.toApiJsonSerializer.serialize(settings, charge, CHARGES_DATA_PARAMETERS);
@@ -110,8 +115,7 @@ public class ChargesApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     public String createCharge(final String apiRequestBodyAsJson) {
 
-        final CommandWrapper commandRequest = new CommandWrapperBuilder().createCharge().withUrl("/charges").withJson(apiRequestBodyAsJson)
-                .build();
+        final CommandWrapper commandRequest = new CommandWrapperBuilder().createCharge().withJson(apiRequestBodyAsJson).build();
 
         final CommandProcessingResult result = this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
 
@@ -124,8 +128,7 @@ public class ChargesApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     public String updateCharge(@PathParam("chargeId") final Long chargeId, final String apiRequestBodyAsJson) {
 
-        final CommandWrapper commandRequest = new CommandWrapperBuilder().updateCharge().withUrl("/charges").withEntityId(chargeId)
-                .withJson(apiRequestBodyAsJson).build();
+        final CommandWrapper commandRequest = new CommandWrapperBuilder().updateCharge(chargeId).withJson(apiRequestBodyAsJson).build();
 
         final CommandProcessingResult result = this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
 
@@ -138,8 +141,7 @@ public class ChargesApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     public String deleteCharge(@PathParam("chargeId") final Long chargeId) {
 
-        final CommandWrapper commandRequest = new CommandWrapperBuilder().deleteCharge().withUrl("/charges").withEntityId(chargeId)
-                .withJson("{}").build();
+        final CommandWrapper commandRequest = new CommandWrapperBuilder().deleteCharge(chargeId).build();
 
         final CommandProcessingResult result = this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
 

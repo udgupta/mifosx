@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.infrastructure.codes.data;
 
 /**
@@ -14,7 +19,15 @@ public class CodeValueData {
     @SuppressWarnings("unused")
     private final Integer position;
 
-    public CodeValueData(final Long id, final String name, final Integer position) {
+    public static CodeValueData instance(final Long id, final String name, final Integer position) {
+        return new CodeValueData(id, name, position);
+    }
+
+    public static CodeValueData instance(final Long id, final String name) {
+        return new CodeValueData(id, name, null);
+    }
+
+    private CodeValueData(final Long id, final String name, final Integer position) {
         this.id = id;
         this.name = name;
         this.position = position;

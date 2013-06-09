@@ -1,6 +1,12 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.loanaccount.api;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -19,6 +25,8 @@ import org.apache.commons.lang.StringUtils;
 import org.mifosplatform.commands.domain.CommandWrapper;
 import org.mifosplatform.commands.service.CommandWrapperBuilder;
 import org.mifosplatform.commands.service.PortfolioCommandSourceWritePlatformService;
+import org.mifosplatform.infrastructure.codes.data.CodeValueData;
+import org.mifosplatform.infrastructure.codes.service.CodeValueReadPlatformService;
 import org.mifosplatform.infrastructure.core.api.ApiRequestParameterHelper;
 import org.mifosplatform.infrastructure.core.data.CommandProcessingResult;
 import org.mifosplatform.infrastructure.core.exception.UnrecognizedQueryParamException;
@@ -27,16 +35,11 @@ import org.mifosplatform.infrastructure.core.serialization.DefaultToApiJsonSeria
 import org.mifosplatform.infrastructure.security.service.PlatformSecurityContext;
 import org.mifosplatform.portfolio.loanaccount.data.LoanTransactionData;
 import org.mifosplatform.portfolio.loanaccount.service.LoanReadPlatformService;
+import org.mifosplatform.portfolio.paymentdetail.PaymentDetailConstants;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
-// FIXME: - undo disbursal fails when transactions have notes against them
-// FIXME: - modifying loan after disbursement
-// FIXME: - does not take into account 'actual disbursement' date being different to 'expected'
-// FIXME: - the schedule is 'generated' rather than been read from current loan schedule
-// FIXME: - should not allow modify loan after disbursal (should be only restructure/reschedule)
-// FIXME: - ui problem with default date for disburse dialog on some screens
 @Path("/loans/{loanId}/transactions")
 @Component
 @Scope("singleton")
@@ -51,17 +54,20 @@ public class LoanTransactionsApiResource {
     private final ApiRequestParameterHelper apiRequestParameterHelper;
     private final DefaultToApiJsonSerializer<LoanTransactionData> toApiJsonSerializer;
     private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
+    private final CodeValueReadPlatformService codeValueReadPlatformService;
 
     @Autowired
     public LoanTransactionsApiResource(final PlatformSecurityContext context, final LoanReadPlatformService loanReadPlatformService,
             final ApiRequestParameterHelper apiRequestParameterHelper,
             final DefaultToApiJsonSerializer<LoanTransactionData> toApiJsonSerializer,
-            final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService) {
+            final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService,
+            final CodeValueReadPlatformService codeValueReadPlatformService) {
         this.context = context;
         this.loanReadPlatformService = loanReadPlatformService;
         this.apiRequestParameterHelper = apiRequestParameterHelper;
         this.toApiJsonSerializer = toApiJsonSerializer;
         this.commandsSourceWritePlatformService = commandsSourceWritePlatformService;
+        this.codeValueReadPlatformService = codeValueReadPlatformService;
     }
 
     private boolean is(final String commandParam, final String commandValue) {
@@ -88,6 +94,8 @@ public class LoanTransactionsApiResource {
             transactionData = this.loanReadPlatformService.retrieveNewClosureDetails();
         } else if (is(commandParam, "close")) {
             transactionData = this.loanReadPlatformService.retrieveNewClosureDetails();
+        } else if (is(commandParam, "disburse")) {
+            transactionData = this.loanReadPlatformService.retrieveDisbursalTemplate(loanId);
         } else {
             throw new UnrecognizedQueryParamException("command", commandParam);
         }
@@ -105,9 +113,14 @@ public class LoanTransactionsApiResource {
 
         context.authenticatedUser().validateHasReadPermission(resourceNameForPermissions);
 
-        final LoanTransactionData transactionData = this.loanReadPlatformService.retrieveLoanTransaction(loanId, transactionId);
-
+        LoanTransactionData transactionData = this.loanReadPlatformService.retrieveLoanTransaction(loanId, transactionId);
         final ApiRequestJsonSerializationSettings settings = apiRequestParameterHelper.process(uriInfo.getQueryParameters());
+        if (settings.isTemplate()) {
+            final Collection<CodeValueData> paymentTypeOptions = codeValueReadPlatformService
+                    .retrieveCodeValuesByCode(PaymentDetailConstants.paymentTypeCodeName);
+            transactionData = LoanTransactionData.templateOnTop(transactionData, paymentTypeOptions);
+        }
+
         return this.toApiJsonSerializer.serialize(settings, transactionData, RESPONSE_DATA_PARAMETERS);
     }
 
@@ -117,24 +130,23 @@ public class LoanTransactionsApiResource {
     public String executeLoanTransaction(@PathParam("loanId") final Long loanId, @QueryParam("command") final String commandParam,
             final String apiRequestBodyAsJson) {
 
-        CommandWrapperBuilder builder = new CommandWrapperBuilder().withUrl("/loans/" + loanId + "/transactions").withLoanId(loanId)
-                .withJson(apiRequestBodyAsJson);
+        CommandWrapperBuilder builder = new CommandWrapperBuilder().withJson(apiRequestBodyAsJson);
 
         CommandProcessingResult result = null;
         if (is(commandParam, "repayment")) {
-            final CommandWrapper commandRequest = builder.loanRepaymentTransaction().build();
+            final CommandWrapper commandRequest = builder.loanRepaymentTransaction(loanId).build();
             result = this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
         } else if (is(commandParam, "waiveinterest")) {
-            final CommandWrapper commandRequest = builder.waiveInterestPortionTransaction().build();
+            final CommandWrapper commandRequest = builder.waiveInterestPortionTransaction(loanId).build();
             result = this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
         } else if (is(commandParam, "writeoff")) {
-            final CommandWrapper commandRequest = builder.writeOffLoanTransaction().build();
+            final CommandWrapper commandRequest = builder.writeOffLoanTransaction(loanId).build();
             result = this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
         } else if (is(commandParam, "close-rescheduled")) {
-            final CommandWrapper commandRequest = builder.closeLoanAsRescheduledTransaction().build();
+            final CommandWrapper commandRequest = builder.closeLoanAsRescheduledTransaction(loanId).build();
             result = this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
         } else if (is(commandParam, "close")) {
-            final CommandWrapper commandRequest = builder.closeLoanTransaction().build();
+            final CommandWrapper commandRequest = builder.closeLoanTransaction(loanId).build();
             result = this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
         }
 
@@ -150,13 +162,12 @@ public class LoanTransactionsApiResource {
     public String adjustLoanTransaction(@PathParam("loanId") final Long loanId, @PathParam("transactionId") final Long transactionId,
             final String apiRequestBodyAsJson) {
 
-        CommandWrapperBuilder builder = new CommandWrapperBuilder().withUrl("/loans/" + loanId + "/transactions").withLoanId(loanId).withEntityId(transactionId)
-                .withJson(apiRequestBodyAsJson);
-        final CommandWrapper commandRequest = builder.adjustTransaction().build();
-        
+        CommandWrapperBuilder builder = new CommandWrapperBuilder().withJson(apiRequestBodyAsJson);
+        final CommandWrapper commandRequest = builder.adjustTransaction(loanId, transactionId).build();
+
         final CommandProcessingResult result = this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
-        
+
         return this.toApiJsonSerializer.serialize(result);
     }
-    
+
 }

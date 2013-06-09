@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.loanaccount.loanschedule.service;
 
 import java.math.BigDecimal;
@@ -6,7 +11,7 @@ import java.util.Set;
 import org.joda.time.LocalDate;
 import org.mifosplatform.infrastructure.core.serialization.FromJsonHelper;
 import org.mifosplatform.organisation.monetary.domain.ApplicationCurrency;
-import org.mifosplatform.organisation.monetary.domain.ApplicationCurrencyRepository;
+import org.mifosplatform.organisation.monetary.domain.ApplicationCurrencyRepositoryWrapper;
 import org.mifosplatform.organisation.monetary.domain.MonetaryCurrency;
 import org.mifosplatform.portfolio.loanaccount.domain.LoanCharge;
 import org.mifosplatform.portfolio.loanaccount.loanschedule.domain.AprCalculator;
@@ -31,15 +36,16 @@ public class LoanScheduleAssembler {
 
     private final FromJsonHelper fromApiJsonHelper;
     private final LoanProductRepository loanProductRepository;
-    private final ApplicationCurrencyRepository applicationCurrencyRepository;
+    private final ApplicationCurrencyRepositoryWrapper applicationCurrencyRepository;
     private final LoanChargeAssembler loanChargeAssembler;
     private final LoanScheduleGeneratorFactory loanScheduleFactory;
     private final AprCalculator aprCalculator;
 
     @Autowired
     public LoanScheduleAssembler(final FromJsonHelper fromApiJsonHelper, final LoanProductRepository loanProductRepository,
-            final ApplicationCurrencyRepository applicationCurrencyRepository, final LoanScheduleGeneratorFactory loanScheduleFactory,
-            final AprCalculator aprCalculator, final LoanChargeAssembler loanChargeAssembler) {
+            final ApplicationCurrencyRepositoryWrapper applicationCurrencyRepository,
+            final LoanScheduleGeneratorFactory loanScheduleFactory, final AprCalculator aprCalculator,
+            final LoanChargeAssembler loanChargeAssembler) {
         this.fromApiJsonHelper = fromApiJsonHelper;
         this.loanProductRepository = loanProductRepository;
         this.applicationCurrencyRepository = applicationCurrencyRepository;
@@ -52,7 +58,7 @@ public class LoanScheduleAssembler {
         final JsonElement element = fromApiJsonHelper.parse(json);
         return fromJson(element);
     }
-    
+
     public LoanSchedule fromJson(final JsonElement element) {
         return fromJson(element, null);
     }
@@ -64,17 +70,20 @@ public class LoanScheduleAssembler {
         if (loanProduct == null) { throw new LoanProductNotFoundException(loanProductId); }
 
         final MonetaryCurrency currency = loanProduct.getCurrency();
-        final ApplicationCurrency applicationCurrency = this.applicationCurrencyRepository.findOneByCode(currency.getCode());
+        final ApplicationCurrency applicationCurrency = this.applicationCurrencyRepository.findOneWithNotFoundDetection(currency);
 
         final BigDecimal principal = fromApiJsonHelper.extractBigDecimalWithLocaleNamed("principal", element);
         final BigDecimal interestRatePerPeriod = fromApiJsonHelper.extractBigDecimalWithLocaleNamed("interestRatePerPeriod", element);
-        final Integer interestRateFrequencyType = fromApiJsonHelper.extractIntegerWithLocaleNamed("interestRateFrequencyType", element);
+        //final Integer interestRateFrequencyType = fromApiJsonHelper.extractIntegerWithLocaleNamed("interestRateFrequencyType", element);
         final Integer interestType = fromApiJsonHelper.extractIntegerWithLocaleNamed("interestType", element);
         final Integer interestCalculationPeriodType = fromApiJsonHelper.extractIntegerWithLocaleNamed("interestCalculationPeriodType",
                 element);
 
         final InterestMethod interestMethod = InterestMethod.fromInt(interestType);
-        final PeriodFrequencyType interestRatePeriodFrequencyType = PeriodFrequencyType.fromInt(interestRateFrequencyType);
+        //final PeriodFrequencyType interestRatePeriodFrequencyType = PeriodFrequencyType.fromInt(interestRateFrequencyType);
+        
+        // PeriodFrequencyType is copied from Loan Product
+        final PeriodFrequencyType interestRatePeriodFrequencyType = loanProduct.loanProductRelatedDetail().getInterestPeriodFrequencyType();
         final InterestCalculationPeriodMethod interestCalculationPeriodMethod = InterestCalculationPeriodMethod
                 .fromInt(interestCalculationPeriodType);
 
@@ -103,6 +112,7 @@ public class LoanScheduleAssembler {
         return new LoanSchedule(loanScheduleGenerator, applicationCurrency, principal, interestRatePerPeriod,
                 interestRatePeriodFrequencyType, defaultAnnualNominalInterestRate, interestMethod, interestCalculationPeriodMethod,
                 repaymentEvery, repaymentPeriodFrequencyType, numberOfRepayments, amortizationMethod, loanTermFrequency,
-                loanTermPeriodFrequencyType, loanCharges, expectedDisbursementDate, repaymentsStartingFromDate, interestChargedFromDate, inArrearsTolerance);
+                loanTermPeriodFrequencyType, loanCharges, expectedDisbursementDate, repaymentsStartingFromDate, interestChargedFromDate,
+                inArrearsTolerance);
     }
 }

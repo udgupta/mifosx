@@ -1,8 +1,12 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.infrastructure.dataqueries.service;
 
 import java.lang.reflect.Type;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -10,27 +14,38 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import javax.sql.rowset.CachedRowSet;
+import javax.sql.DataSource;
 
 import org.apache.commons.lang.StringUtils;
+import org.hibernate.exception.ConstraintViolationException;
+import org.joda.time.LocalDate;
 import org.mifosplatform.infrastructure.core.api.JsonCommand;
 import org.mifosplatform.infrastructure.core.data.ApiParameterError;
+import org.mifosplatform.infrastructure.core.data.CommandProcessingResult;
+import org.mifosplatform.infrastructure.core.data.CommandProcessingResultBuilder;
 import org.mifosplatform.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.mifosplatform.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.mifosplatform.infrastructure.core.serialization.FromJsonHelper;
 import org.mifosplatform.infrastructure.core.serialization.JsonParserHelper;
+import org.mifosplatform.infrastructure.core.service.TenantAwareRoutingDataSource;
 import org.mifosplatform.infrastructure.dataqueries.data.DatatableData;
 import org.mifosplatform.infrastructure.dataqueries.data.GenericResultsetData;
-import org.mifosplatform.infrastructure.dataqueries.data.ResultsetColumnHeader;
-import org.mifosplatform.infrastructure.dataqueries.data.ResultsetColumnValue;
-import org.mifosplatform.infrastructure.dataqueries.data.ResultsetDataRow;
-import org.mifosplatform.infrastructure.dataqueries.exception.DataTableNotFoundException;
+import org.mifosplatform.infrastructure.dataqueries.data.ResultsetColumnHeaderData;
+import org.mifosplatform.infrastructure.dataqueries.data.ResultsetRowData;
+import org.mifosplatform.infrastructure.dataqueries.exception.DatatableNotFoundException;
+import org.mifosplatform.infrastructure.dataqueries.exception.DatatableSystemErrorException;
 import org.mifosplatform.infrastructure.security.service.PlatformSecurityContext;
 import org.mifosplatform.useradministration.domain.AppUser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.rowset.SqlRowSet;
+import org.springframework.jdbc.support.rowset.SqlRowSetMetaData;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.google.gson.reflect.TypeToken;
 
@@ -39,17 +54,23 @@ public class ReadWriteNonCoreDataServiceImpl implements ReadWriteNonCoreDataServ
 
     private final static Logger logger = LoggerFactory.getLogger(ReadWriteNonCoreDataServiceImpl.class);
 
+    private final JdbcTemplate jdbcTemplate;
+    private final DataSource dataSource;
     private final PlatformSecurityContext context;
     private final FromJsonHelper fromJsonHelper;
+    private final JsonParserHelper helper;
+    private final GenericDataService genericDataService;
 
     @Autowired
-    public ReadWriteNonCoreDataServiceImpl(final PlatformSecurityContext context, final FromJsonHelper fromJsonHelper) {
+    public ReadWriteNonCoreDataServiceImpl(final TenantAwareRoutingDataSource dataSource, final PlatformSecurityContext context,
+            final FromJsonHelper fromJsonHelper, final GenericDataService genericDataService) {
+        this.dataSource = dataSource;
+        this.jdbcTemplate = new JdbcTemplate(this.dataSource);
         this.context = context;
         this.fromJsonHelper = fromJsonHelper;
+        this.helper = new JsonParserHelper();
+        this.genericDataService = genericDataService;
     }
-
-    @Autowired
-    private GenericDataService genericDataService;
 
     @Override
     public List<DatatableData> retrieveDatatableNames(final String appTable) {
@@ -60,309 +81,454 @@ public class ReadWriteNonCoreDataServiceImpl implements ReadWriteNonCoreDataServ
         } else {
             andClause = " and application_table_name = '" + appTable + "'";
         }
+
         // PERMITTED datatables
-        String sql = "select application_table_name, registered_table_name" + " from x_registered_table " + " where exists"
+        final String sql = "select application_table_name, registered_table_name" + " from x_registered_table " + " where exists"
                 + " (select 'f'" + " from m_appuser_role ur " + " join m_role r on r.id = ur.role_id"
                 + " left join m_role_permission rp on rp.role_id = r.id" + " left join m_permission p on p.id = rp.permission_id"
                 + " where ur.appuser_id = " + context.authenticatedUser().getId()
                 + " and (p.code in ('ALL_FUNCTIONS', 'ALL_FUNCTIONS_READ') or p.code = concat('READ_', registered_table_name))) "
                 + andClause + " order by application_table_name, registered_table_name";
 
-        String sqlErrorMsg = "Application Table Name: " + appTable + "   sql: " + sql;
-        CachedRowSet rs = genericDataService.getCachedResultSet(sql, sqlErrorMsg);
+        final SqlRowSet rs = this.jdbcTemplate.queryForRowSet(sql);
 
-        List<DatatableData> datatables = new ArrayList<DatatableData>();
-        try {
-            while (rs.next()) {
-                datatables.add(new DatatableData(rs.getString("application_table_name"), rs.getString("registered_table_name")));
-            }
+        final List<DatatableData> datatables = new ArrayList<DatatableData>();
+        while (rs.next()) {
+            final String appTableName = rs.getString("application_table_name");
+            final String registeredDatatableName = rs.getString("registered_table_name");
 
-        } catch (SQLException e) {
-            throw new PlatformDataIntegrityException("error.msg.sql.error", e.getMessage(), sqlErrorMsg);
+            datatables.add(DatatableData.create(appTableName, registeredDatatableName));
         }
 
         return datatables;
     }
 
-    @Override
-    public void registerDatatable(final String datatable, final String appTable) {
-
-        validateAppTable(appTable);
-
-        String createPermission = "'CREATE_" + datatable + "'";
-        String createPermissionChecker = "'CREATE_" + datatable + "_CHECKER'";
-        String readPermission = "'READ_" + datatable + "'";
-        String updatePermission = "'UPDATE_" + datatable + "'";
-        String updatePermissionChecker = "'UPDATE_" + datatable + "_CHECKER'";
-        String deletePermission = "'DELETE_" + datatable + "'";
-        String deletePermissionChecker = "'DELETE_" + datatable + "_CHECKER'";
-        // TODO - put in batch command later
-        String sql = "insert into x_registered_table (registered_table_name, application_table_name) values ('" + datatable + "', '"
-                + appTable + "')";
-
-        genericDataService.updateSQL(sql, "SQL: " + sql);
-        /*
-         * add all permissions, including checker permissions for maintenance
-         * tasks
-         */
-        sql = "insert into m_permission (grouping, code, action_name, entity_name, can_maker_checker) values " + "('datatable', "
-                + createPermission + ", 'CREATE', '" + datatable + "', true)," + "('datatable', " + createPermissionChecker
-                + ", 'CREATE', '" + datatable + "', false)," + "('datatable', " + readPermission + ", 'READ', '" + datatable + "', false),"
-                + "('datatable', " + updatePermission + ", 'UPDATE', '" + datatable + "', true)," + "('datatable', "
-                + updatePermissionChecker + ", 'UPDATE', '" + datatable + "', false)," + "('datatable', " + deletePermission
-                + ", 'DELETE', '" + datatable + "', true)," + "('datatable', " + deletePermissionChecker + ", 'DELETE', '" + datatable
-                + "', false)";
-
-        genericDataService.updateSQL(sql, "SQL: " + sql);
+    private void logAsErrorUnexpectedDataIntegrityException(final Exception dve) {
+        logger.error(dve.getMessage(), dve);
     }
 
+    @Transactional
+    @Override
+    public void registerDatatable(final String dataTableName, final String applicationTableName) {
+
+        validateAppTable(applicationTableName);
+
+        final String registerDatatableSql = "insert into x_registered_table (registered_table_name, application_table_name) values ('"
+                + dataTableName + "', '" + applicationTableName + "')";
+        
+        final String createPermission = "'CREATE_" + dataTableName + "'";
+        final String createPermissionChecker = "'CREATE_" + dataTableName + "_CHECKER'";
+        final String readPermission = "'READ_" + dataTableName + "'";
+        final String updatePermission = "'UPDATE_" + dataTableName + "'";
+        final String updatePermissionChecker = "'UPDATE_" + dataTableName + "_CHECKER'";
+        final String deletePermission = "'DELETE_" + dataTableName + "'";
+        final String deletePermissionChecker = "'DELETE_" + dataTableName + "_CHECKER'";
+
+        final String permissionsSql = "insert into m_permission (grouping, code, action_name, entity_name, can_maker_checker) values "
+                + "('datatable', "
+                + createPermission
+                + ", 'CREATE', '"
+                + dataTableName
+                + "', true),"
+                + "('datatable', "
+                + createPermissionChecker
+                + ", 'CREATE', '"
+                + dataTableName
+                + "', false),"
+                + "('datatable', "
+                + readPermission
+                + ", 'READ', '"
+                + dataTableName
+                + "', false),"
+                + "('datatable', "
+                + updatePermission
+                + ", 'UPDATE', '"
+                + dataTableName
+                + "', true),"
+                + "('datatable', "
+                + updatePermissionChecker
+                + ", 'UPDATE', '"
+                + dataTableName
+                + "', false),"
+                + "('datatable', "
+                + deletePermission
+                + ", 'DELETE', '"
+                + dataTableName
+                + "', true),"
+                + "('datatable', "
+                + deletePermissionChecker
+                + ", 'DELETE', '"
+                + dataTableName + "', false)";
+
+        
+        
+        try {
+            String[] sqlArray = {registerDatatableSql, permissionsSql};
+            this.jdbcTemplate.batchUpdate(sqlArray);
+            
+        } catch (DataIntegrityViolationException dve) {
+            Throwable realCause = dve.getMostSpecificCause();
+            //even if duplicate is only due to permission duplicate, okay to show duplicate datatable error msg
+            if (realCause.getMessage().contains("Duplicate entry")) { throw new PlatformDataIntegrityException(
+                    "error.msg.datatable.registered", "Datatable `" + dataTableName
+                            + "` is already registered against an application table.", "dataTableName", dataTableName); }
+
+            logAsErrorUnexpectedDataIntegrityException(dve);
+            throw new PlatformDataIntegrityException("error.msg.unknown.data.integrity.issue",
+                    "Unknown data integrity issue with resource.");
+        }
+
+    }
+
+    @Transactional
     @Override
     public void deregisterDatatable(final String datatable) {
-        // TODO - put in batch command later
-
-        String permissionList = "('CREATE_" + datatable + "', 'CREATE_" + datatable + "_CHECKER', 'READ_" + datatable + "', 'UPDATE_"
+        final String permissionList = "('CREATE_" + datatable + "', 'CREATE_" + datatable + "_CHECKER', 'READ_" + datatable + "', 'UPDATE_"
                 + datatable + "', 'UPDATE_" + datatable + "_CHECKER', 'DELETE_" + datatable + "', 'DELETE_" + datatable + "_CHECKER')";
 
-        String sql = "delete from m_role_permission where m_role_permission.permission_id in (select id from m_permission where code in "
+        final String deleteRolePermissionsSql = "delete from m_role_permission where m_role_permission.permission_id in (select id from m_permission where code in "
                 + permissionList + ")";
-        genericDataService.updateSQL(sql, "SQL: " + sql);
 
-        sql = "delete from m_permission where code in " + permissionList;
-        genericDataService.updateSQL(sql, "SQL: " + sql);
+        final String deletePermissionsSql = "delete from m_permission where code in " + permissionList;
 
-        sql = "delete from x_registered_table where registered_table_name = '" + datatable + "'";
-        genericDataService.updateSQL(sql, "SQL: " + sql);
+        final String deleteRegisteredDatatableSql = "delete from x_registered_table where registered_table_name = '" + datatable + "'";        
+
+        String[] sqlArray = {deleteRolePermissionsSql, deletePermissionsSql, deleteRegisteredDatatableSql};
+        this.jdbcTemplate.batchUpdate(sqlArray);
     }
 
+    @Transactional
     @Override
-    public void newDatatableEntry(final String datatable, final Long appTableId, final JsonCommand command) {
-        String appTable = getWithinScopeApplicationTableName(datatable, appTableId);
+    public CommandProcessingResult createNewDatatableEntry(final String dataTableName, final Long appTableId, final JsonCommand command) {
 
-        List<ResultsetColumnHeader> columnHeaders = getDatatableResultsetColumnHeaders(datatable);
+        try {
+            final String appTable = queryForApplicationTableName(dataTableName);
+            CommandProcessingResult commandProcessingResult = checkMainResourceExistsWithinScope(appTable, appTableId);
 
-        final Type typeOfMap = new TypeToken<Map<String, String>>() {}.getType();
-        Map<String, String> dataParams = this.fromJsonHelper.extractDataMap(typeOfMap, command.json());
+            final List<ResultsetColumnHeaderData> columnHeaders = this.genericDataService.fillResultsetColumnHeaders(dataTableName);
 
-        String sql = getAddSql(columnHeaders, datatable, getFKField(appTable), appTableId, dataParams);
+            final Type typeOfMap = new TypeToken<Map<String, String>>() {}.getType();
+            final Map<String, String> dataParams = this.fromJsonHelper.extractDataMap(typeOfMap, command.json());
 
-        genericDataService.updateSQL(sql, "SQL: " + sql);
-    }
+            final String sql = getAddSql(columnHeaders, dataTableName, getFKField(appTable), appTableId, dataParams);
 
-    @Override
-    public Map<String, Object> updateDatatableEntryOneToOne(final String datatable, final Long appTableId, final JsonCommand command) {
+            this.jdbcTemplate.update(sql);
+            
+            return commandProcessingResult; //
+            
+        } catch (ConstraintViolationException dve) {
+            // NOTE: jdbctemplate throws a
+            // org.hibernate.exception.ConstraintViolationException even though
+            // it should be a DataAccessException?
+            Throwable realCause = dve.getCause();
+            if (realCause.getMessage().contains("Duplicate entry")) { throw new PlatformDataIntegrityException(
+                    "error.msg.datatable.entry.duplicate", "An entry already exists for datatable `" + dataTableName
+                            + "` and application table with identifier `" + appTableId + "`.", "dataTableName", dataTableName, appTableId); }
 
-        GenericResultsetData grs = retrieveDataTableGenericResultSet(datatable, appTableId, null, null);
+            logAsErrorUnexpectedDataIntegrityException(dve);
+            throw new PlatformDataIntegrityException("error.msg.unknown.data.integrity.issue",
+                    "Unknown data integrity issue with resource.");
+        } catch (DataAccessException dve) {
+            Throwable realCause = dve.getMostSpecificCause();
+            if (realCause.getMessage().contains("Duplicate entry")) { throw new PlatformDataIntegrityException(
+                    "error.msg.datatable.entry.duplicate", "An entry already exists for datatable `" + dataTableName
+                            + "` and application table with identifier `" + appTableId + "`.", "dataTableName", dataTableName, appTableId); }
 
-        if (grs.getData().size() == 0) throw new DataTableNotFoundException(datatable, appTableId);
-
-        if (grs.getData().size() > 1)
-            throw new PlatformDataIntegrityException("error.msg.attempting.multiple.update", "Application Table: " + datatable
-                    + "   Foreign Key Id: " + appTableId);
-
-        String fkName = getFKField(getApplicationTableName(datatable));
-
-        final Type typeOfMap = new TypeToken<Map<String, String>>() {}.getType();
-        Map<String, String> dataParams = this.fromJsonHelper.extractDataMap(typeOfMap, command.json());
-
-        final Map<String, Object> changes = getAffectedAndChangedColumns(grs, dataParams, fkName);
-
-        if (changes.size() == 0) return changes;
-
-        String sql = getUpdateSql(datatable, fkName, appTableId, changes);
-
-        if (sql != null) {
-            genericDataService.updateSQL(sql, "SQL: " + sql);
-        } else {
-            logger.info("No Changes");
+            logAsErrorUnexpectedDataIntegrityException(dve);
+            throw new PlatformDataIntegrityException("error.msg.unknown.data.integrity.issue",
+                    "Unknown data integrity issue with resource.");
         }
-
-        return changes;
     }
 
+    @Transactional
     @Override
-    public Map<String, Object> updateDatatableEntryOneToMany(final String datatable, final Long appTableId, final Long datatableId,
+    public CommandProcessingResult updateDatatableEntryOneToOne(final String dataTableName, final Long appTableId, final JsonCommand command) {
+
+    	return updateDatatableEntry(dataTableName, appTableId, null, command);
+    }
+
+    @Transactional
+    @Override
+    public CommandProcessingResult updateDatatableEntryOneToMany(final String dataTableName, final Long appTableId, final Long datatableId,
             final JsonCommand command) {
 
-        GenericResultsetData grs = retrieveDataTableGenericResultSet(datatable, appTableId, null, datatableId);
+    	return updateDatatableEntry(dataTableName, appTableId, datatableId, command);
+    }
+    
 
-        if (grs.getData().size() == 0) throw new DataTableNotFoundException(datatable, appTableId);
-
+    private CommandProcessingResult updateDatatableEntry(final String dataTableName, final Long appTableId, final Long datatableId,
+            final JsonCommand command) {
+    	
+        final String appTable = queryForApplicationTableName(dataTableName);
+        CommandProcessingResult commandProcessingResult = checkMainResourceExistsWithinScope(appTable, appTableId);
+        
+        final GenericResultsetData grs = retrieveDataTableGenericResultSetForUpdate(appTable, dataTableName, appTableId, datatableId);
+    	
+        if (grs.hasNoEntries()) { throw new DatatableNotFoundException(dataTableName, appTableId); }
+    	
+        if (grs.hasMoreThanOneEntry()) { throw new PlatformDataIntegrityException("error.msg.attempting.multiple.update",
+                "Application table: " + dataTableName + " Foreign key id: " + appTableId); }
+    	
         final Type typeOfMap = new TypeToken<Map<String, String>>() {}.getType();
         Map<String, String> dataParams = this.fromJsonHelper.extractDataMap(typeOfMap, command.json());
 
-        final Map<String, Object> changes = getAffectedAndChangedColumns(grs, dataParams, "id");
+        String pkName = "id"; //1:M datatable
+        if (datatableId == null) { pkName = getFKField(appTable);} //1:1 datatable
+        
+        final Map<String, Object> changes = getAffectedAndChangedColumns(grs, dataParams, pkName);
 
-        if (changes.size() == 0) return changes;
-
-        String sql = getUpdateSql(datatable, "id", datatableId, changes);
-
-        if (sql != null) {
-            genericDataService.updateSQL(sql, "SQL: " + sql);
-        } else {
-            logger.info("No Changes");
+        if (!changes.isEmpty()) {
+        	Long pkValue = appTableId;
+        	if (datatableId != null) { pkValue = datatableId;}
+            final String sql = getUpdateSql(dataTableName, pkName, pkValue, changes);
+            logger.info("Update sql: " + sql);
+            if (StringUtils.isNotBlank(sql)) {
+                this.jdbcTemplate.update(sql);
+                changes.put("locale", dataParams.get("locale"));
+                changes.put("dateFormat", "yyyy-MM-dd");
+            } else {
+            	logger.info("No Changes");
+    		}
         }
 
-        return changes;
+        return new CommandProcessingResultBuilder() //
+		.withOfficeId(commandProcessingResult.getOfficeId()) //
+		.withGroupId(commandProcessingResult.getGroupId()) //
+		.withClientId(commandProcessingResult.getClientId()) //
+		.withSavingsId(commandProcessingResult.getSavingsId()) //
+		.withLoanId(commandProcessingResult.getLoanId()) //        
+		.with(changes) //
+        .build();      
+    }
+    
+
+    @Transactional
+    @Override
+    public CommandProcessingResult deleteDatatableEntries(final String dataTableName, final Long appTableId) {
+
+        final String appTable = queryForApplicationTableName(dataTableName);
+        CommandProcessingResult commandProcessingResult = checkMainResourceExistsWithinScope(appTable, appTableId);
+        
+
+        final String deleteOneToOneEntrySql = getDeleteEntriesSql(dataTableName, getFKField(appTable), appTableId);
+
+        int rowsDeleted = this.jdbcTemplate.update(deleteOneToOneEntrySql);
+        if (rowsDeleted < 1) { throw new DatatableNotFoundException(dataTableName, appTableId); }
+        
+        return commandProcessingResult;
+    }
+
+    @Transactional
+    @Override
+    public CommandProcessingResult deleteDatatableEntry(final String dataTableName, final Long appTableId, final Long datatableId) {
+
+        final String appTable = queryForApplicationTableName(dataTableName);
+        CommandProcessingResult commandProcessingResult = checkMainResourceExistsWithinScope(appTable, appTableId);
+
+        final String sql = getDeleteEntrySql(dataTableName, datatableId);
+
+        this.jdbcTemplate.update(sql);
+        return commandProcessingResult;
     }
 
     @Override
-    public void deleteDatatableEntries(final String datatable, final Long appTableId) {
-
-        String appTable = getWithinScopeApplicationTableName(datatable, appTableId);
-
-        String sql = getDeleteEntriesSql(datatable, getFKField(appTable), appTableId);
-
-        genericDataService.updateSQL(sql, "SQL: " + sql);
-    }
-
-    @Override
-    public void deleteDatatableEntry(final String datatable, final Long appTableId, final Long datatableId) {
-
-        getWithinScopeApplicationTableName(datatable, appTableId);
-
-        String sql = getDeleteEntrySql(datatable, datatableId);
-
-        genericDataService.updateSQL(sql, "SQL: " + sql);
-    }
-
-    @Override
-    public GenericResultsetData retrieveDataTableGenericResultSet(final String datatable, final Long appTableId, final String order,
+    public GenericResultsetData retrieveDataTableGenericResultSet(final String dataTableName, final Long appTableId, final String order,
             final Long id) {
 
-        String appTable = getWithinScopeApplicationTableName(datatable, appTableId);
+        final String appTable = queryForApplicationTableName(dataTableName);
+        checkMainResourceExistsWithinScope(appTable, appTableId);
 
-        List<ResultsetColumnHeader> columnHeaders = getDatatableResultsetColumnHeaders(datatable);
+        final List<ResultsetColumnHeaderData> columnHeaders = this.genericDataService.fillResultsetColumnHeaders(dataTableName);
 
         String sql = "";
 
         // id only used for reading a specific entry in a one to many datatable
         // (when updating)
         if (id == null) {
-            sql = sql + "select * from `" + datatable + "` where " + getFKField(appTable) + " = " + appTableId;
+            sql = sql + "select * from `" + dataTableName + "` where " + getFKField(appTable) + " = " + appTableId;
         } else {
-            sql = sql + "select * from `" + datatable + "` where id = " + id;
+            sql = sql + "select * from `" + dataTableName + "` where id = " + id;
         }
 
-        if (order != null) sql = sql + " order by " + order;
+        if (order != null) {
+            sql = sql + " order by " + order;
+        }
 
-        List<ResultsetDataRow> result = fillDatatableResultSetDataRows(sql);
+        final List<ResultsetRowData> result = fillDatatableResultSetDataRows(sql);
+
+        return new GenericResultsetData(columnHeaders, result);
+    }
+    
+
+    private GenericResultsetData retrieveDataTableGenericResultSetForUpdate(final String appTable, String dataTableName, final Long appTableId, 
+            final Long id) {
+
+        final List<ResultsetColumnHeaderData> columnHeaders = this.genericDataService.fillResultsetColumnHeaders(dataTableName);
+
+        String sql = "";
+
+        // id only used for reading a specific entry in a one to many datatable
+        // (when updating)
+        if (id == null) {
+            sql = sql + "select * from `" + dataTableName + "` where " + getFKField(appTable) + " = " + appTableId;
+        } else {
+            sql = sql + "select * from `" + dataTableName + "` where id = " + id;
+        }
+
+        final List<ResultsetRowData> result = fillDatatableResultSetDataRows(sql);
 
         return new GenericResultsetData(columnHeaders, result);
     }
 
-    private void checkMainResourceExistsWithinScope(final String appTable, final Long appTableId) {
+    private CommandProcessingResult checkMainResourceExistsWithinScope(final String appTable, final Long appTableId) {
 
-        String unscopedSql = "select t.id from `" + appTable + "` t ${dataScopeCriteria} where t.id = " + appTableId;
+        final String sql = dataScopedSQL(appTable, appTableId);
+logger.info("data scoped sql: " + sql);
+        final SqlRowSet rs = this.jdbcTemplate.queryForRowSet(sql);
+        
+        if (!rs.next()) { throw new DatatableNotFoundException(appTable, appTableId); }
 
-        String sql = dataScopedSQL(unscopedSql, appTable);
-
-        CachedRowSet rs = genericDataService.getCachedResultSet(sql, "SQL : " + sql);
-
-        if (rs.size() == 0) throw new DataTableNotFoundException(appTable, appTableId);
+        Long officeId = getLongSqlRowSet(rs, "officeId");
+        Long groupId = getLongSqlRowSet(rs, "groupId");
+        Long clientId = getLongSqlRowSet(rs, "clientId");
+        Long savingsId = getLongSqlRowSet(rs, "savingsId");
+        Long LoanId = getLongSqlRowSet(rs, "loanId");
+        
+        if (rs.next()) { throw new DatatableSystemErrorException("System Error: More than one row returned from data scoping query"); }
+                
+        return new CommandProcessingResultBuilder() //
+        					.withOfficeId(officeId) //
+        					.withGroupId(groupId) //
+        					.withClientId(clientId) //
+        					.withSavingsId(savingsId) //
+        					.withLoanId(LoanId) //        
+        					.build();
     }
+    
+    private Long getLongSqlRowSet(SqlRowSet rs, String column) {
+        Long val = rs.getLong(column);
+        if (val == 0) val = null;
+    	return val;
+    }
+    
 
-    private String dataScopedSQL(final String unscopedSQL, final String appTable) {
-        String dataScopeCriteria = null;
+    private String dataScopedSQL(final String appTable, final Long appTableId) {
         /*
          * unfortunately have to, one way or another, be able to restrict data
-         * to the users office hierarchy. Here it's hardcoded for client and
-         * loan. They are the main application tables. But if additional fields
-         * are needed on other tables like group, loan_transaction or others the
-         * same applies (hardcoding of some sort)
+         * to the users office hierarchy. Here, a few key tables are done.
+         * But if additional fields are needed on other tables the
+         * same pattern applies
          */
 
         AppUser currentUser = context.authenticatedUser();
-        if (appTable.equalsIgnoreCase("m_client")) {
-            dataScopeCriteria = " join m_office o on o.id = t.office_id and o.hierarchy like '" + currentUser.getOffice().getHierarchy()
-                    + "%'";
-        }
+        String scopedSQL = null;
+        /*
+         * m_loan and m_savings_account are connected to an m_office thru either an m_client or an m_group 
+         * If both it means it relates to an m_client that is in a group (still an m_client account)
+         */
         if (appTable.equalsIgnoreCase("m_loan")) {
-            dataScopeCriteria = " join m_client c on c.id = t.client_id " + " join m_office o on o.id = c.office_id and o.hierarchy like '"
-                    + currentUser.getOffice().getHierarchy() + "%'";
+        	scopedSQL = "select  distinctrow x.* from (" +
+        			" (select o.id as officeId, l.group_id as groupId, l.client_id as clientId, null as savingsId, l.id as loanId from m_loan l " +
+        			" join m_client c on c.id = l.client_id " + 
+        			" join m_office o on o.id = c.office_id and o.hierarchy like '" +
+                    currentUser.getOffice().getHierarchy() + "%'" +
+        			" where l.id = " + appTableId + ")" +
+                    " union all " +
+        			" (select o.id as officeId, l.group_id as groupId, l.client_id as clientId, null as savingsId, l.id as loanId from m_loan l " +
+        			" join m_group g on g.id = l.group_id " + 
+        			" join m_office o on o.id = g.office_id and o.hierarchy like '" +
+                    currentUser.getOffice().getHierarchy() + "%'" +
+        			" where l.id = " + appTableId + ")" +
+        			" ) x";
         }
+        if (appTable.equalsIgnoreCase("m_savings_account")) {
+        	scopedSQL = "select  distinctrow x.* from (" +
+        			" (select o.id as officeId, s.group_id as groupId, s.client_id as clientId, s.id as savingsId, null as loanId from m_savings_account s " +
+        			" join m_client c on c.id = s.client_id " + 
+        			" join m_office o on o.id = c.office_id and o.hierarchy like '" +
+                    currentUser.getOffice().getHierarchy() + "%'" +
+        			" where s.id = " + appTableId+ ")" +
+                    " union all " +
+        			" (select o.id as officeId, s.group_id as groupId, s.client_id as clientId, s.id as savingsId, null as loanId from m_savings_account s " +
+        			" join m_group g on g.id = s.group_id " + 
+        			" join m_office o on o.id = g.office_id and o.hierarchy like '" +
+                    currentUser.getOffice().getHierarchy() + "%'" +
+        			" where s.id = " + appTableId+ ")" +
+        			" ) x";
+        }
+        if (appTable.equalsIgnoreCase("m_client")) {
+        	scopedSQL = "select o.id as officeId, null as groupId, c.id as clientId, null as savingsId, null as loanId from m_client c " +
+        			" join m_office o on o.id = c.office_id and o.hierarchy like '" +
+                    currentUser.getOffice().getHierarchy() + "%'" +
+        			" where c.id = " + appTableId;
+        }
+         if (appTable.equalsIgnoreCase("m_group")) {
+        	scopedSQL = "select o.id as officeId, g.id as groupId, null as clientId, null as savingsId, null as loanId from m_group g " +
+        			" join m_office o on o.id = g.office_id and o.hierarchy like '" +
+                    currentUser.getOffice().getHierarchy() + "%'" +
+        			" where g.id = " + appTableId;
+        }   
+        if (appTable.equalsIgnoreCase("m_office")) {
+        	scopedSQL = "select o.id as officeId, null as groupId, null as clientId, null as savingsId, null as loanId from m_office o " +
+        			" where o.hierarchy like '" +
+                    currentUser.getOffice().getHierarchy() + "%'" +
+        			" and o.id = " + appTableId;
+        }        
 
-        if (dataScopeCriteria == null) { throw new PlatformDataIntegrityException("error.msg.invalid.dataScopeCriteria",
+        if (scopedSQL == null) { throw new PlatformDataIntegrityException("error.msg.invalid.dataScopeCriteria",
                 "Application Table: " + appTable + " not catered for in data Scoping"); }
 
-        return genericDataService.replace(unscopedSQL, "${dataScopeCriteria}", dataScopeCriteria);
+        return scopedSQL;
 
     }
 
     private void validateAppTable(final String appTable) {
 
-        if (appTable.equalsIgnoreCase("m_client")) return;
         if (appTable.equalsIgnoreCase("m_loan")) return;
+        if (appTable.equalsIgnoreCase("m_savings_account")) return;
+        if (appTable.equalsIgnoreCase("m_client")) return;
+        if (appTable.equalsIgnoreCase("m_group")) return;
+        if (appTable.equalsIgnoreCase("m_office")) return;
 
         throw new PlatformDataIntegrityException("error.msg.invalid.application.table", "Invalid Application Table: " + appTable);
     }
 
-    private List<ResultsetDataRow> fillDatatableResultSetDataRows(final String sql) {
+    private List<ResultsetRowData> fillDatatableResultSetDataRows(final String sql) {
 
-        String sqlErrorMsg = "Sql: " + sql;
-        CachedRowSet rs = genericDataService.getCachedResultSet(sql, sqlErrorMsg);
+        final SqlRowSet rs = this.jdbcTemplate.queryForRowSet(sql);
 
-        List<ResultsetDataRow> resultsetDataRows = new ArrayList<ResultsetDataRow>();
+        final List<ResultsetRowData> resultsetDataRows = new ArrayList<ResultsetRowData>();
 
-        try {
+        final SqlRowSetMetaData rsmd = rs.getMetaData();
 
-            ResultSetMetaData rsmd = rs.getMetaData();
-            int columnCount = rsmd.getColumnCount();
-
-            ResultsetDataRow resultsetDataRow;
-            String columnName = null;
-            String columnValue = null;
-            while (rs.next()) {
-                resultsetDataRow = new ResultsetDataRow();
-                List<String> columnValues = new ArrayList<String>();
-                for (int i = 0; i < columnCount; i++) {
-                    columnName = rsmd.getColumnName(i + 1);
-                    columnValue = rs.getString(columnName);
-                    columnValues.add(columnValue);
-                }
-                resultsetDataRow.setRow(columnValues);
-                resultsetDataRows.add(resultsetDataRow);
+        while (rs.next()) {
+            final List<String> columnValues = new ArrayList<String>();
+            for (int i = 0; i < rsmd.getColumnCount(); i++) {
+                final String columnName = rsmd.getColumnName(i + 1);
+                final String columnValue = rs.getString(columnName);
+                columnValues.add(columnValue);
             }
 
-            return resultsetDataRows;
-        } catch (SQLException e) {
-            throw new PlatformDataIntegrityException("error.msg.sql.error", e.getMessage(), sqlErrorMsg);
+            final ResultsetRowData resultsetDataRow = ResultsetRowData.create(columnValues);
+            resultsetDataRows.add(resultsetDataRow);
         }
+
+        return resultsetDataRows;
     }
 
-    private String getWithinScopeApplicationTableName(final String datatable, final Long appTableId) {
-        String sql = "SELECT application_table_name FROM x_registered_table where registered_table_name = '" + datatable + "'";
+    private String queryForApplicationTableName(final String datatable) {
+        final String sql = "SELECT application_table_name FROM x_registered_table where registered_table_name = '" + datatable + "'";
 
-        CachedRowSet rs = genericDataService.getCachedResultSet(sql, "SQL : " + sql);
+        final SqlRowSet rs = this.jdbcTemplate.queryForRowSet(sql);
 
-        if (rs.size() == 0) throw new DataTableNotFoundException(datatable);
-
-        try {
-            rs.next();
-            String appTable = rs.getString("application_table_name");
-
-            checkMainResourceExistsWithinScope(appTable, appTableId);
-
-            return appTable;
-        } catch (SQLException e) {
-            throw new PlatformDataIntegrityException("error.msg.sql.error", e.getMessage());
+        String applicationTableName = null;
+        if (rs.next()) {
+            applicationTableName = rs.getString("application_table_name");
+        } else {
+            throw new DatatableNotFoundException(datatable);
         }
-    }
 
-    private String getApplicationTableName(final String datatable) {
-        // TODO - only used for update... can probably remove this after as its
-        // a reread
-        String sql = "SELECT application_table_name FROM x_registered_table where registered_table_name = '" + datatable + "'";
-
-        CachedRowSet rs = genericDataService.getCachedResultSet(sql, "SQL : " + sql);
-
-        if (rs.size() == 0) throw new DataTableNotFoundException(datatable);
-
-        try {
-            rs.next();
-            return rs.getString("application_table_name");
-        } catch (SQLException e) {
-            throw new PlatformDataIntegrityException("error.msg.sql.error", e.getMessage());
-        }
+        return applicationTableName;
     }
 
     private String getFKField(final String applicationTableName) {
@@ -370,89 +536,7 @@ public class ReadWriteNonCoreDataServiceImpl implements ReadWriteNonCoreDataServ
         return applicationTableName.substring(2) + "_id";
     }
 
-    private CachedRowSet getDatatableMetaData(final String datatable) {
-
-        String sql = "select COLUMN_NAME, IS_NULLABLE, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, COLUMN_KEY"
-                + " from INFORMATION_SCHEMA.COLUMNS " + " where TABLE_SCHEMA = schema() and TABLE_NAME = '" + datatable
-                + "'order by ORDINAL_POSITION";
-
-        CachedRowSet columnDefinitions = genericDataService.getCachedResultSet(sql, "SQL: " + sql);
-
-        if (columnDefinitions.size() > 0) return columnDefinitions;
-
-        throw new DataTableNotFoundException(datatable);
-    }
-
-    private List<ResultsetColumnHeader> getDatatableResultsetColumnHeaders(final String datatable) {
-
-        CachedRowSet columnDefinitions = getDatatableMetaData(datatable);
-
-        List<ResultsetColumnHeader> columnHeaders = new ArrayList<ResultsetColumnHeader>();
-
-        try {
-
-            while (columnDefinitions.next()) {
-                ResultsetColumnHeader rsch = new ResultsetColumnHeader();
-
-                rsch.setColumnName(columnDefinitions.getString("COLUMN_NAME"));
-
-                String isNullable = columnDefinitions.getString("IS_NULLABLE");
-                if (isNullable.equalsIgnoreCase("YES"))
-                    rsch.setColumnNullable(true);
-                else
-                    rsch.setColumnNullable(false);
-
-                String isPrimaryKey = columnDefinitions.getString("COLUMN_KEY");
-                if (isPrimaryKey.equalsIgnoreCase("PRI"))
-                    rsch.setColumnPrimaryKey(true);
-                else
-                    rsch.setColumnPrimaryKey(false);
-
-                Long columnLength = columnDefinitions.getLong("CHARACTER_MAXIMUM_LENGTH");
-                if (columnLength > 0) rsch.setColumnLength(columnDefinitions.getLong("CHARACTER_MAXIMUM_LENGTH"));
-
-                rsch.setColumnType(columnDefinitions.getString("DATA_TYPE"));
-
-                /* look for codes */
-                if (rsch.getColumnType().equalsIgnoreCase("varchar")) addCodesValueIfNecessary(rsch, "_cv");
-
-                if (rsch.getColumnType().equalsIgnoreCase("int")) addCodesValueIfNecessary(rsch, "_cd");
-
-                rsch.setColumnDisplayType();
-
-                columnHeaders.add(rsch);
-            }
-            ;
-            return columnHeaders;
-
-        } catch (SQLException e) {
-            throw new PlatformDataIntegrityException("error.msg.sql.error", e.getMessage());
-        }
-
-    }
-
-    private void addCodesValueIfNecessary(final ResultsetColumnHeader rsch, final String code_suffix) {
-        int codePosition = rsch.getColumnName().indexOf(code_suffix);
-        if (codePosition > 0) {
-            String codeName = rsch.getColumnName().substring(0, codePosition);
-
-            String sql = "select v.id, v.code_value from m_code m " + " join m_code_value v on v.code_id = m.id "
-                    + " where m.code_name = '" + codeName + "' order by v.order_position, v.id";
-
-            CachedRowSet rsValues = genericDataService.getCachedResultSet(sql, "SQL: " + sql);
-
-            try {
-                while (rsValues.next()) {
-                    rsch.getColumnValues().add(new ResultsetColumnValue(rsValues.getInt("id"), rsValues.getString("code_value")));
-                }
-            } catch (SQLException e) {
-                throw new PlatformDataIntegrityException("error.msg.sql.error", e.getMessage());
-            }
-        }
-
-    }
-
-    private String getAddSql(final List<ResultsetColumnHeader> columnHeaders, final String datatable, final String fkName,
+    private String getAddSql(final List<ResultsetColumnHeaderData> columnHeaders, final String datatable, final String fkName,
             final Long appTableId, final Map<String, String> queryParams) {
 
         final Map<String, String> affectedColumns = getAffectedColumns(columnHeaders, queryParams, fkName);
@@ -527,21 +611,21 @@ public class ReadWriteNonCoreDataServiceImpl implements ReadWriteNonCoreDataServ
     private Map<String, Object> getAffectedAndChangedColumns(final GenericResultsetData grs, final Map<String, String> queryParams,
             final String fkName) {
 
-        Map<String, String> affectedColumns = getAffectedColumns(grs.getColumnHeaders(), queryParams, fkName);
-        Map<String, Object> affectedAndChangedColumns = new HashMap<String, Object>();
-        String columnValue;
+        final Map<String, String> affectedColumns = getAffectedColumns(grs.getColumnHeaders(), queryParams, fkName);
+        final Map<String, Object> affectedAndChangedColumns = new HashMap<String, Object>();
 
-        for (String key : affectedColumns.keySet()) {
-            columnValue = affectedColumns.get(key);
-            if (columnChanged(key, columnValue, grs)) {
+        for (final String key : affectedColumns.keySet()) {
+            final String columnValue = affectedColumns.get(key);
+            final String colType = grs.getColTypeOfColumnNamed(key);
+            if (columnChanged(key, columnValue, colType, grs)) {
                 affectedAndChangedColumns.put(key, columnValue);
             }
         }
-
+        
         return affectedAndChangedColumns;
     }
 
-    private boolean columnChanged(final String key, final String keyValue, final GenericResultsetData grs) {
+    private boolean columnChanged(final String key, final String keyValue, final String colType, final GenericResultsetData grs) {
 
         List<String> columnValues = grs.getData().get(0).getRow();
 
@@ -551,10 +635,8 @@ public class ReadWriteNonCoreDataServiceImpl implements ReadWriteNonCoreDataServ
             if (key.equals(grs.getColumnHeaders().get(i).getColumnName())) {
                 columnValue = columnValues.get(i);
 
-                if (notTheSame(columnValue, keyValue)) {
-                    logger.info("Difference - Column: " + key + "- Current Value: " + columnValue + "    New Value: " + keyValue);
+                if (notTheSame(columnValue, keyValue, colType)) {
                     return true;
-
                 }
                 return false;
             }
@@ -563,8 +645,8 @@ public class ReadWriteNonCoreDataServiceImpl implements ReadWriteNonCoreDataServ
         throw new PlatformDataIntegrityException("error.msg.invalid.columnName", "Parameter Column Name: " + key + " not found");
     }
 
-    private Map<String, String> getAffectedColumns(final List<ResultsetColumnHeader> columnHeaders, final Map<String, String> queryParams,
-            final String keyFieldName) {
+    private Map<String, String> getAffectedColumns(final List<ResultsetColumnHeaderData> columnHeaders,
+            final Map<String, String> queryParams, final String keyFieldName) {
 
         String dateFormat = queryParams.get("dateFormat");
         Locale clientApplicationLocale = null;
@@ -590,7 +672,7 @@ public class ReadWriteNonCoreDataServiceImpl implements ReadWriteNonCoreDataServ
                 // matches incoming fields with and without underscores (spaces
                 // and underscores considered the same)
                 queryParamColumnUnderscored = genericDataService.replace(key, space, underscore);
-                for (ResultsetColumnHeader columnHeader : columnHeaders) {
+                for (ResultsetColumnHeaderData columnHeader : columnHeaders) {
                     if (notFound) {
                         columnHeaderUnderscored = genericDataService.replace(columnHeader.getColumnName(), space, underscore);
                         if (queryParamColumnUnderscored.equalsIgnoreCase(columnHeaderUnderscored)) {
@@ -608,67 +690,84 @@ public class ReadWriteNonCoreDataServiceImpl implements ReadWriteNonCoreDataServ
         return affectedColumns;
     }
 
-    private String validateColumn(final ResultsetColumnHeader columnHeader, final String pValue, final String dateFormat,
+    private String validateColumn(final ResultsetColumnHeaderData columnHeader, final String pValue, final String dateFormat,
             final Locale clientApplicationLocale) {
 
         String paramValue = pValue;
+        if (columnHeader.isDateDisplayType() || columnHeader.isIntegerDisplayType() || columnHeader.isDecimalDisplayType()) {
+            paramValue = paramValue.trim();
+        }
 
-        if ((StringUtils.isEmpty(paramValue)) && (!(columnHeader.isColumnNullable()))) {
+        if (StringUtils.isEmpty(paramValue) && columnHeader.isMandatory()) {
 
-            List<ApiParameterError> dataValidationErrors = new ArrayList<ApiParameterError>();
-            ApiParameterError error = ApiParameterError.parameterError("error.msg.column.mandatory", "Mandatory",
+            final List<ApiParameterError> dataValidationErrors = new ArrayList<ApiParameterError>();
+            final ApiParameterError error = ApiParameterError.parameterError("error.msg.column.mandatory", "Mandatory",
                     columnHeader.getColumnName());
             dataValidationErrors.add(error);
             throw new PlatformApiDataValidationException("validation.msg.validation.errors.exist", "Validation errors exist.",
                     dataValidationErrors);
         }
 
-        if (!StringUtils.isEmpty(paramValue)) {
+        if (StringUtils.isNotEmpty(paramValue)) {
 
-            if (columnHeader.getColumnValues().size() > 0) {
-                // match code value or id
-                List<ResultsetColumnValue> allowedValues = columnHeader.getColumnValues();
-                if (columnHeader.getColumnDisplayType().equals("CODEVALUE")) {
-                    for (ResultsetColumnValue allowedValue : allowedValues) {
-                        if (paramValue.equalsIgnoreCase(allowedValue.getValue())) return paramValue;
+            if (columnHeader.hasColumnValues()) {
+                if (columnHeader.isCodeValueDisplayType()) {
+
+                    if (columnHeader.isColumnValueNotAllowed(paramValue)) {
+                        final List<ApiParameterError> dataValidationErrors = new ArrayList<ApiParameterError>();
+                        final ApiParameterError error = ApiParameterError.parameterError("error.msg.invalid.columnValue",
+                                "Value not found in Allowed Value list", columnHeader.getColumnName(), paramValue);
+                        dataValidationErrors.add(error);
+                        throw new PlatformApiDataValidationException("validation.msg.validation.errors.exist", "Validation errors exist.",
+                                dataValidationErrors);
                     }
-                    List<ApiParameterError> dataValidationErrors = new ArrayList<ApiParameterError>();
-                    ApiParameterError error = ApiParameterError.parameterError("error.msg.invalid.columnValue",
-                            "Value not found in Allowed Value list", columnHeader.getColumnName(), paramValue);
-                    dataValidationErrors.add(error);
-                    throw new PlatformApiDataValidationException("validation.msg.validation.errors.exist", "Validation errors exist.",
-                            dataValidationErrors);
-                }
 
-                if (columnHeader.getColumnDisplayType().equals("CODELOOKUP")) {
-                    for (ResultsetColumnValue allowedValue : allowedValues) {
-                        if (paramValue.equals(Integer.toString(allowedValue.getId()))) return paramValue;
+                    return paramValue;
+                } else if (columnHeader.isCodeLookupDisplayType()) {
+
+                    final Integer codeLookup = Integer.valueOf(paramValue);
+                    if (columnHeader.isColumnCodeNotAllowed(codeLookup)) {
+                        final List<ApiParameterError> dataValidationErrors = new ArrayList<ApiParameterError>();
+                        final ApiParameterError error = ApiParameterError.parameterError("error.msg.invalid.columnValue",
+                                "Value not found in Allowed Value list", columnHeader.getColumnName(), paramValue);
+                        dataValidationErrors.add(error);
+                        throw new PlatformApiDataValidationException("validation.msg.validation.errors.exist", "Validation errors exist.",
+                                dataValidationErrors);
                     }
-                    List<ApiParameterError> dataValidationErrors = new ArrayList<ApiParameterError>();
-                    ApiParameterError error = ApiParameterError.parameterError("error.msg.invalid.columnValue",
-                            "Value not found in Allowed Value list", columnHeader.getColumnName(), paramValue);
-                    dataValidationErrors.add(error);
-                    throw new PlatformApiDataValidationException("validation.msg.validation.errors.exist", "Validation errors exist.",
-                            dataValidationErrors);
-                }
 
-                throw new PlatformDataIntegrityException("error.msg.invalid.columnType.", "Code: " + columnHeader.getColumnName()
-                        + " - Invalid Type " + columnHeader.getColumnType() + " (neither varchar nor int)");
+                    return paramValue;
+                } else {
+                    throw new PlatformDataIntegrityException("error.msg.invalid.columnType.", "Code: " + columnHeader.getColumnName()
+                            + " - Invalid Type " + columnHeader.getColumnType() + " (neither varchar nor int)");
+                }
             }
 
-            JsonParserHelper helper = new JsonParserHelper();
+            if (columnHeader.isDateDisplayType()) {
+                final LocalDate tmpDate = helper.convertFrom(paramValue, columnHeader.getColumnName(), dateFormat, clientApplicationLocale);
+                if (tmpDate == null) {
+                    paramValue = null;
+                } else {
+                    paramValue = tmpDate.toString();
+                }
+            }
 
-            if (columnHeader.getColumnDisplayType().equals("DATE"))
-                paramValue = helper.convertFrom(paramValue, columnHeader.getColumnName(), dateFormat, clientApplicationLocale).toString();
+            if (columnHeader.isIntegerDisplayType()) {
+                Integer tmpInt = helper.convertToInteger(paramValue, columnHeader.getColumnName(), clientApplicationLocale);
+                if (tmpInt == null) {
+                    paramValue = null;
+                } else {
+                    paramValue = tmpInt.toString();
+                }
+            }
 
-            if (columnHeader.getColumnDisplayType().equals("INTEGER"))
-                paramValue = helper.convertToInteger(paramValue, columnHeader.getColumnName(), clientApplicationLocale).toString();
-
-            if (columnHeader.getColumnDisplayType().equals("DECIMAL"))
-                paramValue = helper.convertFrom(paramValue, columnHeader.getColumnName(), clientApplicationLocale).toString();
-            // logger.info("Converted Value: " + paramValue + " - was: " +
-            // pValue);
-
+            if (columnHeader.isDecimalDisplayType()) {
+                BigDecimal tmpDecimal = helper.convertFrom(paramValue, columnHeader.getColumnName(), clientApplicationLocale);
+                if (tmpDecimal == null) {
+                    paramValue = null;
+                } else {
+                    paramValue = tmpDecimal.toString();
+                }
+            }
         }
 
         return paramValue;
@@ -686,12 +785,19 @@ public class ReadWriteNonCoreDataServiceImpl implements ReadWriteNonCoreDataServ
 
     }
 
-    private boolean notTheSame(final String currValue, final String pValue) {
+    private boolean notTheSame(final String currValue, final String pValue, final String colType) {
         if (StringUtils.isEmpty(currValue) && StringUtils.isEmpty(pValue)) return false;
 
         if (StringUtils.isEmpty(currValue)) return true;
 
         if (StringUtils.isEmpty(pValue)) return true;
+
+        if ("DECIMAL".equalsIgnoreCase(colType)) {
+            final BigDecimal currentDecimal = BigDecimal.valueOf(Double.valueOf(currValue));
+            final BigDecimal newDecimal = BigDecimal.valueOf(Double.valueOf(pValue));
+
+            return currentDecimal.compareTo(newDecimal) != 0;
+        }
 
         if (currValue.equals(pValue)) return false;
 

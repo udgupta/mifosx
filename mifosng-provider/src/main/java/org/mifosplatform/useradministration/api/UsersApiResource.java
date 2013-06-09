@@ -1,10 +1,13 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.useradministration.api;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import javax.ws.rs.Consumes;
@@ -27,7 +30,7 @@ import org.mifosplatform.infrastructure.core.data.CommandProcessingResult;
 import org.mifosplatform.infrastructure.core.serialization.ApiRequestJsonSerializationSettings;
 import org.mifosplatform.infrastructure.core.serialization.DefaultToApiJsonSerializer;
 import org.mifosplatform.infrastructure.security.service.PlatformSecurityContext;
-import org.mifosplatform.organisation.office.data.OfficeLookup;
+import org.mifosplatform.organisation.office.data.OfficeData;
 import org.mifosplatform.organisation.office.service.OfficeReadPlatformService;
 import org.mifosplatform.useradministration.data.AppUserData;
 import org.mifosplatform.useradministration.service.AppUserReadPlatformService;
@@ -94,8 +97,8 @@ public class UsersApiResource {
 
         AppUserData user = this.readPlatformService.retrieveUser(userId);
         if (settings.isTemplate()) {
-            List<OfficeLookup> offices = new ArrayList<OfficeLookup>(this.officeReadPlatformService.retrieveAllOfficesForLookup());
-            user = new AppUserData(user, offices);
+            final Collection<OfficeData> offices = this.officeReadPlatformService.retrieveAllOfficesForDropdown();
+            user = AppUserData.template(user, offices);
         }
 
         return this.toApiJsonSerializer.serialize(settings, user, RESPONSE_DATA_PARAMETERS);
@@ -120,7 +123,9 @@ public class UsersApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     public String createUser(final String apiRequestBodyAsJson) {
 
-        final CommandWrapper commandRequest = new CommandWrapperBuilder().createUser().withUrl("/users").withJson(apiRequestBodyAsJson)
+        final CommandWrapper commandRequest = new CommandWrapperBuilder() //
+                .createUser() //
+                .withJson(apiRequestBodyAsJson) //
                 .build();
 
         final CommandProcessingResult result = this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
@@ -134,8 +139,10 @@ public class UsersApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     public String updateUser(@PathParam("userId") final Long userId, final String apiRequestBodyAsJson) {
 
-        final CommandWrapper commandRequest = new CommandWrapperBuilder().updateUser().withUrl("/users").withJson(apiRequestBodyAsJson)
-                .withEntityId(userId).build();
+        final CommandWrapper commandRequest = new CommandWrapperBuilder() //
+                .updateUser(userId) //
+                .withJson(apiRequestBodyAsJson) //
+                .build();
 
         final CommandProcessingResult result = this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
 
@@ -148,8 +155,9 @@ public class UsersApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     public String deleteUser(@PathParam("userId") final Long userId) {
 
-        final CommandWrapper commandRequest = new CommandWrapperBuilder().deleteUser().withUrl("/users").withJson("{}")
-                .withEntityId(userId).build();
+        final CommandWrapper commandRequest = new CommandWrapperBuilder() //
+                .deleteUser(userId) //
+                .build();
 
         final CommandProcessingResult result = this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
 

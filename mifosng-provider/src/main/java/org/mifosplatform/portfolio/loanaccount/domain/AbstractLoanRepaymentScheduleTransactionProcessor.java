@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.loanaccount.domain;
 
 import java.util.List;
@@ -24,8 +29,9 @@ public abstract class AbstractLoanRepaymentScheduleTransactionProcessor implemen
      * existing in which case the entire loan schedule needs to be re-processed.
      */
     @Override
-    public void handleTransaction(final LocalDate disbursementDate, final List<LoanTransaction> transactionsPostDisbursement,
-            final MonetaryCurrency currency, final List<LoanRepaymentScheduleInstallment> installments, final Set<LoanCharge> charges) {
+    public ChangedTransactionDetail handleTransaction(final LocalDate disbursementDate,
+            final List<LoanTransaction> transactionsPostDisbursement, final MonetaryCurrency currency,
+            final List<LoanRepaymentScheduleInstallment> installments, final Set<LoanCharge> charges) {
 
         if (charges != null) {
             for (LoanCharge loanCharge : charges) {
@@ -41,19 +47,48 @@ public abstract class AbstractLoanRepaymentScheduleTransactionProcessor implemen
 
         // re-process loan charges over repayment periods (picking up on waived
         // loan charges)
-        LoanScheduleWrapper wrapper = new LoanScheduleWrapper();
+        LoanRepaymentScheduleProcessingWrapper wrapper = new LoanRepaymentScheduleProcessingWrapper();
         wrapper.reprocess(currency, disbursementDate, installments, charges);
 
+        ChangedTransactionDetail changedTransactionDetail = new ChangedTransactionDetail();
         for (LoanTransaction loanTransaction : transactionsPostDisbursement) {
 
             if (loanTransaction.isRepayment() || loanTransaction.isInterestWaiver()) {
-                loanTransaction.resetDerivedComponents();
-                handleTransaction(loanTransaction, currency, installments, charges);
+                // pass through for new transactions
+                if (loanTransaction.getId() == null) {
+                    loanTransaction.resetDerivedComponents();
+                    handleTransaction(loanTransaction, currency, installments, charges);
+                } else {
+                    /**
+                     * For existing transactions, check if the re-payment
+                     * breakup (principal, interest, fees, penalties) has
+                     * changed.<br>
+                     **/
+                    LoanTransaction newLoanTransaction = LoanTransaction.copyTransactionProperties(loanTransaction);
+
+                    // Reset derived component of new loan transaction and
+                    // re-process transaction
+                    newLoanTransaction.resetDerivedComponents();
+                    handleTransaction(newLoanTransaction, currency, installments, charges);
+
+                    /**
+                     * Check if the transaction amounts have changed. If so,
+                     * reverse the original transaction and update
+                     * changedTransactionDetail accordingly
+                     **/
+                    if (!LoanTransaction.transactionAmountsMatch(currency, loanTransaction, newLoanTransaction)) {
+                        loanTransaction.reverse();
+                        changedTransactionDetail.getReversedTransactions().add(loanTransaction);
+                        changedTransactionDetail.getNewTransactions().add(newLoanTransaction);
+                    }
+                }
+
             } else if (loanTransaction.isWriteOff()) {
                 loanTransaction.resetDerivedComponents();
                 handleWriteOff(loanTransaction, currency, installments);
             }
         }
+        return changedTransactionDetail;
     }
 
     /**
@@ -118,7 +153,8 @@ public abstract class AbstractLoanRepaymentScheduleTransactionProcessor implemen
         for (LoanCharge loanCharge : charges) {
             if (!loanCharge.isDueAtDisbursement()) {
                 if (loanCharge.isFeeCharge() && loanCharge.isNotFullyPaid() && amountRemaining.isGreaterThanZero()) {
-                    amountRemaining = loanCharge.updatePaidAmountBy(amountRemaining);
+                    final LoanCharge unpaidCharge = findEarliestUnpaidChargeFromUnOrderedSet(charges);
+                    amountRemaining = unpaidCharge.updatePaidAmountBy(amountRemaining);
                 }
             }
         }
@@ -138,13 +174,12 @@ public abstract class AbstractLoanRepaymentScheduleTransactionProcessor implemen
         }
     }
 
-    private LoanCharge findEarliestUnpaidChargeFromUnOrderedSet(Set<LoanCharge> charges) {
+    private LoanCharge findEarliestUnpaidChargeFromUnOrderedSet(final Set<LoanCharge> charges) {
         LoanCharge earliestUnpaidCharge = null;
 
         for (LoanCharge loanCharge : charges) {
             if (loanCharge.isNotFullyPaid() && !loanCharge.isDueAtDisbursement()) {
-                if (earliestUnpaidCharge == null
-                        || loanCharge.getDueForCollectionAsOfLocalDate().isBefore(earliestUnpaidCharge.getDueForCollectionAsOfLocalDate())) {
+                if (earliestUnpaidCharge == null || loanCharge.getDueLocalDate().isBefore(earliestUnpaidCharge.getDueLocalDate())) {
                     earliestUnpaidCharge = loanCharge;
                 }
             }
@@ -169,6 +204,8 @@ public abstract class AbstractLoanRepaymentScheduleTransactionProcessor implemen
             if (currentInstallment.isNotFullyCompleted()) {
                 principalPortion = principalPortion.plus(currentInstallment.writeOffOutstandingPrincipal(currency));
                 interestPortion = interestPortion.plus(currentInstallment.writeOffOutstandingInterest(currency));
+                feeChargesPortion = feeChargesPortion.plus(currentInstallment.writeOffOutstandingFeeCharges(currency));
+                penaltychargesPortion = penaltychargesPortion.plus(currentInstallment.writeOffOutstandingPenaltyCharges(currency));
             }
         }
 

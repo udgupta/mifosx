@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.portfolio.charge.domain;
 
 import java.math.BigDecimal;
@@ -9,13 +14,20 @@ import javax.persistence.Entity;
 import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
 
+import org.apache.commons.lang.builder.EqualsBuilder;
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.mifosplatform.infrastructure.core.api.JsonCommand;
-import org.mifosplatform.infrastructure.core.domain.AbstractAuditableCustom;
-import org.mifosplatform.useradministration.domain.AppUser;
+import org.mifosplatform.infrastructure.core.data.EnumOptionData;
+import org.mifosplatform.organisation.monetary.data.CurrencyData;
+import org.mifosplatform.portfolio.charge.data.ChargeData;
+import org.mifosplatform.portfolio.charge.exception.ChargeDueAtDisbursementCannotBePenaltyException;
+import org.mifosplatform.portfolio.charge.service.ChargeEnumerations;
+import org.mifosplatform.portfolio.loanaccount.domain.LoanCharge;
+import org.springframework.data.jpa.domain.AbstractPersistable;
 
 @Entity
 @Table(name = "m_charge", uniqueConstraints = { @UniqueConstraint(columnNames = { "name" }, name = "name") })
-public class Charge extends AbstractAuditableCustom<AppUser, Long> {
+public class Charge extends AbstractPersistable<Long> {
 
     @Column(name = "name", length = 100)
     private String name;
@@ -66,7 +78,7 @@ public class Charge extends AbstractAuditableCustom<AppUser, Long> {
     }
 
     private Charge(final String name, final BigDecimal amount, final String currencyCode, final ChargeAppliesTo chargeAppliesTo,
-            final ChargeTimeType chargeTime, final ChargeCalculationType chargeCalculationType, final boolean penalty, boolean active) {
+            final ChargeTimeType chargeTime, final ChargeCalculationType chargeCalculationType, final boolean penalty, final boolean active) {
         this.name = name;
         this.amount = amount;
         this.currencyCode = currencyCode;
@@ -75,6 +87,25 @@ public class Charge extends AbstractAuditableCustom<AppUser, Long> {
         this.chargeCalculation = chargeCalculationType.getValue();
         this.penalty = penalty;
         this.active = active;
+        if (penalty && chargeTime.isTimeOfDisbursement()) { throw new ChargeDueAtDisbursementCannotBePenaltyException(name); }
+    }
+
+    @Override
+    public boolean equals(final Object obj) {
+        if (obj == null) { return false; }
+        if (obj == this) { return true; }
+        if (obj.getClass() != getClass()) { return false; }
+        LoanCharge rhs = (LoanCharge) obj;
+        return new EqualsBuilder().appendSuper(super.equals(obj)) //
+                .append(this.getId(), rhs.getId()) //
+                .isEquals();
+    }
+
+    @Override
+    public int hashCode() {
+        return new HashCodeBuilder(3, 5) //
+                .append(this.getId()) //
+                .toHashCode();
     }
 
     public String getName() {
@@ -175,6 +206,9 @@ public class Charge extends AbstractAuditableCustom<AppUser, Long> {
             this.active = newValue;
         }
 
+        if (this.penalty && ChargeTimeType.fromInt(this.chargeTime).isTimeOfDisbursement()) { throw new ChargeDueAtDisbursementCannotBePenaltyException(
+                name); }
+
         return actualChanges;
     }
 
@@ -187,5 +221,16 @@ public class Charge extends AbstractAuditableCustom<AppUser, Long> {
     public void delete() {
         this.deleted = true;
         this.name = this.getId() + "_" + this.name;
+    }
+
+    public ChargeData toData() {
+
+        EnumOptionData chargeTimeType = ChargeEnumerations.chargeTimeType(this.chargeTime);
+        EnumOptionData chargeAppliesTo = ChargeEnumerations.chargeAppliesTo(this.chargeAppliesTo);
+        EnumOptionData chargeCalculationType = ChargeEnumerations.chargeCalculationType(this.chargeCalculation);
+
+        CurrencyData currency = new CurrencyData(this.currencyCode, null, 0, null, null);
+        return ChargeData.instance(this.getId(), this.name, this.amount, currency, chargeTimeType, chargeAppliesTo, chargeCalculationType,
+                penalty, active);
     }
 }

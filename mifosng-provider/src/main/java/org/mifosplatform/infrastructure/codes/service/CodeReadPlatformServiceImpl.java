@@ -1,3 +1,8 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 package org.mifosplatform.infrastructure.codes.service;
 
 import java.sql.ResultSet;
@@ -39,7 +44,7 @@ public class CodeReadPlatformServiceImpl implements CodeReadPlatformService {
             final String code_name = rs.getString("code_name");
             final boolean systemDefined = rs.getBoolean("systemDefined");
 
-            return new CodeData(id, code_name, systemDefined);
+            return CodeData.instance(id, code_name, systemDefined);
         }
     }
 
